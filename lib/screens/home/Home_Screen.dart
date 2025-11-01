@@ -1,5 +1,8 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+
+// 🔹 Import các màn hình có sẵn
+import '../detail/Detail_Films.dart';
 import '../profile/Profile_Screen.dart';
 import '../search/Search_Screen.dart';
 import '../watch/Watch_Screen.dart';
@@ -24,6 +27,7 @@ class _HomeScreenState extends State<HomeScreen> {
       "desc": "Hành Động • 2024",
       "url360": "https://example.r2.cloud/ngutru_360.mp4",
       "url720": "https://example.r2.cloud/ngutru_720.mp4",
+      "posterUrl": "assets/posters/am_ha_truyen.jpg"
     },
     {
       "image": "assets/posters/tuyet_canh_ba.jpg",
@@ -33,6 +37,7 @@ class _HomeScreenState extends State<HomeScreen> {
       "https://pub-ba53485be5b04ffe9192e4aae5ed2da6.r2.dev/phimtuyecanhba/480p/tuyetcanhba_480.m3u8",
       "url720":
       "https://pub-ba53485be5b04ffe9192e4aae5ed2da6.r2.dev/phimtuyecanhba/720p/tuyetcanhba_720p.m3u8",
+      "posterUrl": "assets/posters/tuyet_canh_ba.jpg"
     },
     {
       "image": "assets/posters/nhat_tieu_tuy_ca.jpg",
@@ -40,6 +45,7 @@ class _HomeScreenState extends State<HomeScreen> {
       "desc": "Trung Quốc",
       "url360": "https://example.r2.cloud/nhattieutuyca_360.mp4",
       "url720": "https://example.r2.cloud/nhattieutuyca_720.mp4",
+      "posterUrl": "assets/posters/nhat_tieu_tuy_ca.jpg"
     },
     {
       "image": "assets/posters/than_den_oi_uoc_di.jpg",
@@ -47,6 +53,7 @@ class _HomeScreenState extends State<HomeScreen> {
       "desc": "Hài hước • 2024",
       "url360": "https://example.r2.cloud/thanden_360.mp4",
       "url720": "https://example.r2.cloud/thanden_720.mp4",
+      "posterUrl": "assets/posters/than_den_oi_uoc_di.jpg"
     },
     {
       "image": "assets/posters/ngu_tru_cua_bao_chua.jpg",
@@ -54,6 +61,7 @@ class _HomeScreenState extends State<HomeScreen> {
       "desc": "Hài hước • 2024",
       "url360": "https://example.r2.cloud/ngutru_360.mp4",
       "url720": "https://example.r2.cloud/ngutru_720.mp4",
+      "posterUrl": "assets/posters/ngu_tru_cua_bao_chua.jpg"
     },
   ];
 
@@ -224,8 +232,6 @@ class _HomeScreenState extends State<HomeScreen> {
               ],
             ),
 
-
-
             const SizedBox(height: 30),
           ],
         ),
@@ -246,21 +252,23 @@ class _HomeScreenState extends State<HomeScreen> {
           final banner = banners[index];
           final url360 = banner["url360"] ?? banner["url480"];
           final url720 = banner["url720"];
+          final posterUrl = banner["posterUrl"];
 
           return GestureDetector(
             onTap: () {
-              if (url360 != null && url720 != null) {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => WatchScreen(
-                      title: banner["title"] ?? "Không rõ tên",
-                      url360: url360,
-                      url720: url720,
-                    ),
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => DetailFilmScreen(
+                    title: banner["title"] ?? "Không rõ tên",
+                    description: banner["desc"] ?? "Mô tả đang cập nhật...",
+                    director: "Đạo diễn đang cập nhật",
+                    posterUrl: posterUrl ?? "",
+                    url360: url360 ?? "",
+                    url720: url720 ?? "",
                   ),
-                );
-              }
+                ),
+              );
             },
             child: Stack(
               children: [
@@ -365,26 +373,50 @@ class MovieCardFull extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 150,
-      margin: const EdgeInsets.only(left: 10, right: 4),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(10),
-            child:
-            Image.asset(image, height: 210, width: 150, fit: BoxFit.cover),
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => DetailFilmScreen(
+              title: title,
+              description: "Mô tả phim đang cập nhật...",
+              director: "Đạo diễn đang cập nhật",
+              posterUrl: image,
+              url360: "https://example.r2.cloud/sample_360.mp4",
+              url720: "https://example.r2.cloud/sample_720.mp4",
+            ),
           ),
-          const SizedBox(height: 5),
-          Text(
-            title,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-                fontSize: 14, color: Colors.white, fontWeight: FontWeight.w600),
-          ),
-        ],
+        );
+      },
+      child: Container(
+        width: 150,
+        margin: const EdgeInsets.only(left: 10, right: 4),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: Image.asset(
+                image,
+                height: 210,
+                width: 150,
+                fit: BoxFit.cover,
+              ),
+            ),
+            const SizedBox(height: 5),
+            Text(
+              title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontSize: 14,
+                color: Colors.white,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
