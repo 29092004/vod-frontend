@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:movie_app/screens/home/Home_Screen.dart';
 
-
 void main() {
   runApp(const MyApp());
 }

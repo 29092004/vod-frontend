@@ -27,10 +27,9 @@ class _WatchScreenState extends State<WatchScreen> {
   }
 
   void _initializePlayer() {
-    // ✅ Tạo nguồn phát có nhiều độ phân giải
     final betterPlayerDataSource = BetterPlayerDataSource(
       BetterPlayerDataSourceType.network,
-      widget.url720, // URL mặc định
+      widget.url720,
       cacheConfiguration: const BetterPlayerCacheConfiguration(useCache: true),
       resolutions: {
         "480p": widget.url360,
@@ -38,7 +37,6 @@ class _WatchScreenState extends State<WatchScreen> {
       },
     );
 
-    // ✅ Cấu hình trình phát
     _betterPlayerController = BetterPlayerController(
       const BetterPlayerConfiguration(
         autoPlay: true,
@@ -48,7 +46,7 @@ class _WatchScreenState extends State<WatchScreen> {
         handleLifecycle: true,
         controlsConfiguration: BetterPlayerControlsConfiguration(
           enableFullscreen: true,
-          enableQualities: true, // ✅ bật menu Quality
+          enableQualities: true,
           enablePlaybackSpeed: true,
           enableProgressText: true,
           enableOverflowMenu: true,
@@ -59,7 +57,6 @@ class _WatchScreenState extends State<WatchScreen> {
       betterPlayerDataSource: betterPlayerDataSource,
     );
 
-    // ✅ Giữ âm thanh khi đổi chất lượng
     _betterPlayerController.setVolume(1.0);
   }
 

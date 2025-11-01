@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../auth/login.dart';
 
 class AccountScreen extends StatelessWidget {
   const AccountScreen({super.key});
@@ -22,22 +23,34 @@ class AccountScreen extends StatelessWidget {
                       child: Icon(Icons.person, size: 40, color: Colors.black54),
                     ),
                     const SizedBox(width: 12),
+
+                    // 🔹 Nhấn để chuyển sang LoginScreen
                     Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: const [
-                          Text("Đăng nhập / Đăng ký",
-                              style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold)),
-                        ],
+                      child: GestureDetector(
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const LoginScreen(),
+                            ),
+                          );
+                        },
+                        child: const Text(
+                          "Đăng nhập / Đăng ký",
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                       ),
                     ),
+
                     IconButton(
-                        onPressed: () {},
-                        icon: const Icon(Icons.notifications_none,
-                            color: Colors.white)),
+                      onPressed: () {},
+                      icon: const Icon(Icons.notifications_none,
+                          color: Colors.white),
+                    ),
                   ],
                 ),
               ),
@@ -45,7 +58,7 @@ class AccountScreen extends StatelessWidget {
               const SizedBox(height: 20),
               const Divider(color: Colors.grey, thickness: 0.2),
 
-              // 🔹 Danh sách menu giữ lại
+              // 🔹 Danh sách menu
               _buildMenuItem(Icons.history, "Lịch sử xem", () {}),
               _buildMenuItem(Icons.language, "Ngôn ngữ", () {}),
               _buildMenuItem(Icons.settings, "Cài đặt", () {}),
