@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
-import 'register.dart'; // 👈 Điều hướng nội bộ sang trang đăng ký
+import '../../services/auth_service.dart';
+import 'register.dart';
+import '../../screens/home/Home_Screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -27,12 +29,36 @@ class _LoginScreenState extends State<LoginScreen> {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _loading = true);
 
-    await Future.delayed(const Duration(milliseconds: 800));
-
-    if (!mounted) return;
+    final res = await AuthService.login(_email.text, _pass.text);
     setState(() => _loading = false);
 
-    Navigator.of(context).pushReplacementNamed('/home');
+    if (!mounted) return;
+
+    if (res['error'] != null) {
+      //  Đăng nhập thất bại
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(res['error']),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+      return;
+    }
+
+    //  Đợi 0.8s rồi chuyển sang HomeScreen
+    await Future.delayed(const Duration(milliseconds: 800));
+
+    if (mounted) {
+      final user = res['user'] ?? {};
+      final email = user['email'] ?? '';
+
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => HomeScreen(email: email),
+        ),
+      );
+    }
   }
 
   @override
@@ -54,12 +80,15 @@ class _LoginScreenState extends State<LoginScreen> {
       ),
       body: Stack(
         children: [
+          // Ảnh nền
           Positioned.fill(
             child: Image.asset(
               'assets/anh_chinh/anh_nen_login_chinh.jpg',
               fit: BoxFit.cover,
             ),
           ),
+
+          // Lớp phủ mờ
           Positioned.fill(
             child: Container(
               decoration: BoxDecoration(
@@ -110,7 +139,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     const SizedBox(height: 22),
 
-                    // Form
+                    // Form đăng nhập
                     Container(
                       padding: const EdgeInsets.symmetric(
                           horizontal: 16, vertical: 18),
@@ -149,6 +178,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               },
                             ),
                             const SizedBox(height: 14),
+
                             TextFormField(
                               controller: _pass,
                               obscureText: _obscure,
@@ -195,7 +225,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                             const SizedBox(height: 10),
 
-                            // Đăng nhập
+                            // Nút Đăng nhập
                             SizedBox(
                               width: double.infinity,
                               height: 48,
@@ -204,7 +234,8 @@ class _LoginScreenState extends State<LoginScreen> {
                                   backgroundColor: Colors.green,
                                   foregroundColor: Colors.black,
                                   shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(12)),
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
                                 ),
                                 onPressed: _loading ? null : _onLogin,
                                 child: _loading
@@ -212,76 +243,58 @@ class _LoginScreenState extends State<LoginScreen> {
                                   width: 22,
                                   height: 22,
                                   child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                      color: Colors.black),
+                                    strokeWidth: 2,
+                                    color: Colors.black,
+                                  ),
                                 )
-                                    : const Text('Đăng nhập',
-                                    style: TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 16)),
+                                    : const Text(
+                                  'Đăng nhập',
+                                  style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 16),
+                                ),
                               ),
                             ),
                             const SizedBox(height: 14),
 
-                            // 🔹 Đăng nhập bằng Google
-                            OutlinedButton.icon(
-                              style: OutlinedButton.styleFrom(
-                                foregroundColor: Colors.white,
-                                side: const BorderSide(color: Colors.white24),
-                                shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(12)),
-                                padding:
-                                const EdgeInsets.symmetric(vertical: 12),
-                              ),
-                              onPressed: () {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                      content: Text(
-                                          'Đăng nhập bằng Google 🟢')),
-                                );
-                              },
-                              icon: const Icon(Icons.g_mobiledata,
-                                  size: 28, color: Colors.redAccent),
-                              label: const Text('Đăng nhập bằng Google'),
+                            // Đăng ký
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Text('Chưa có tài khoản? ',
+                                    style: TextStyle(color: Colors.white70)),
+                                TextButton(
+                                  onPressed: () {
+                                    Navigator.push(
+                                      context,
+                                      PageRouteBuilder(
+                                        pageBuilder: (_, animation, __) =>
+                                        const RegisterScreen(),
+                                        transitionsBuilder:
+                                            (_, anim, __, child) =>
+                                            SlideTransition(
+                                              position: Tween(
+                                                  begin:
+                                                  const Offset(1.0, 0.0),
+                                                  end: Offset.zero)
+                                                  .animate(CurvedAnimation(
+                                                  parent: anim,
+                                                  curve: Curves.easeInOut)),
+                                              child: child,
+                                            ),
+                                        transitionDuration:
+                                        const Duration(milliseconds: 400),
+                                      ),
+                                    );
+                                  },
+                                  child: const Text('Đăng ký ngay',
+                                      style: TextStyle(color: Colors.green)),
+                                ),
+                              ],
                             ),
                           ],
                         ),
                       ),
-                    ),
-                    const SizedBox(height: 14),
-
-                    // Đăng ký
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Text('Chưa có tài khoản? ',
-                            style: TextStyle(color: Colors.white70)),
-                        TextButton(
-                          onPressed: () {
-                            Navigator.push(
-                              context,
-                              PageRouteBuilder(
-                                pageBuilder: (_, animation, __) =>
-                                const RegisterScreen(),
-                                transitionsBuilder: (_, anim, __, child) =>
-                                    SlideTransition(
-                                      position: Tween(
-                                          begin: const Offset(1.0, 0.0),
-                                          end: Offset.zero)
-                                          .animate(CurvedAnimation(
-                                          parent: anim,
-                                          curve: Curves.easeInOut)),
-                                      child: child,
-                                    ),
-                                transitionDuration:
-                                const Duration(milliseconds: 400),
-                              ),
-                            );
-                          },
-                          child: const Text('Đăng ký ngay',
-                              style: TextStyle(color: Colors.green)),
-                        ),
-                      ],
                     ),
                   ],
                 ),

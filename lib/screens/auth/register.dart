@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../services/auth_service.dart';
 import 'login.dart';
 
 class RegisterScreen extends StatefulWidget {
@@ -15,6 +16,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _confirm = TextEditingController();
   bool _obscure1 = true;
   bool _obscure2 = true;
+  bool _loading = false;
 
   @override
   Widget build(BuildContext context) {
@@ -24,7 +26,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        automaticallyImplyLeading: false, // ❌ Bỏ nút quay lại
+        automaticallyImplyLeading: false,
         title: const Text(
           "Đăng ký",
           style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
@@ -40,6 +42,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
               fit: BoxFit.cover,
             ),
           ),
+
           // Lớp phủ mờ
           Positioned.fill(
             child: Container(
@@ -57,12 +60,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
             ),
           ),
 
-          // Nội dung
+          // Nội dung chính
           SafeArea(
             child: Center(
               child: SingleChildScrollView(
-                padding:
-                const EdgeInsets.symmetric(horizontal: 24, vertical: 18),
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 18),
                 child: Column(
                   children: [
                     const Text(
@@ -87,16 +89,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               icon: Icons.email_outlined,
                             ),
                             validator: (v) {
-                              if (v == null || v.isEmpty) {
-                                return "Vui lòng nhập email";
-                              }
-                              if (!v.contains("@")) {
-                                return "Email không hợp lệ";
-                              }
+                              if (v == null || v.isEmpty) return "Vui lòng nhập email";
+                              if (!v.contains("@")) return "Email không hợp lệ";
                               return null;
                             },
                           ),
                           const SizedBox(height: 16),
+
                           TextFormField(
                             controller: _password,
                             obscureText: _obscure1,
@@ -106,20 +105,17 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               icon: Icons.lock_outline,
                               trailing: IconButton(
                                 icon: Icon(
-                                  _obscure1
-                                      ? Icons.visibility_off
-                                      : Icons.visibility,
+                                  _obscure1 ? Icons.visibility_off : Icons.visibility,
                                   color: Colors.white70,
                                 ),
-                                onPressed: () =>
-                                    setState(() => _obscure1 = !_obscure1),
+                                onPressed: () => setState(() => _obscure1 = !_obscure1),
                               ),
                             ),
-                            validator: (v) => v!.length < 6
-                                ? "Mật khẩu tối thiểu 6 ký tự"
-                                : null,
+                            validator: (v) =>
+                            v!.length < 6 ? "Mật khẩu tối thiểu 6 ký tự" : null,
                           ),
                           const SizedBox(height: 16),
+
                           TextFormField(
                             controller: _confirm,
                             obscureText: _obscure2,
@@ -129,13 +125,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               icon: Icons.lock_reset,
                               trailing: IconButton(
                                 icon: Icon(
-                                  _obscure2
-                                      ? Icons.visibility_off
-                                      : Icons.visibility,
+                                  _obscure2 ? Icons.visibility_off : Icons.visibility,
                                   color: Colors.white70,
                                 ),
-                                onPressed: () =>
-                                    setState(() => _obscure2 = !_obscure2),
+                                onPressed: () => setState(() => _obscure2 = !_obscure2),
                               ),
                             ),
                             validator: (v) =>
@@ -152,55 +145,29 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 backgroundColor: Colors.green,
                                 foregroundColor: Colors.black,
                                 shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(12)),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
                               ),
-                              onPressed: () {
-                                if (_formKey.currentState!.validate()) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text("Đăng ký thành công 🎉"),
-                                      backgroundColor: Colors.green,
-                                    ),
-                                  );
-                                  Navigator.pushReplacement(
-                                    context,
-                                    MaterialPageRoute(
-                                        builder: (_) => const LoginScreen()),
-                                  );
-                                }
-                              },
-                              child: const Text(
+                              onPressed: _loading ? null : _handleRegister,
+                              child: _loading
+                                  ? const SizedBox(
+                                width: 22,
+                                height: 22,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.black,
+                                ),
+                              )
+                                  : const Text(
                                 "Đăng ký",
                                 style: TextStyle(
                                     fontWeight: FontWeight.bold, fontSize: 16),
                               ),
                             ),
                           ),
-                          const SizedBox(height: 14),
-
-                          // 🔹 Đăng ký bằng Google
-                          OutlinedButton.icon(
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: Colors.white,
-                              side: const BorderSide(color: Colors.white24),
-                              shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12)),
-                              padding:
-                              const EdgeInsets.symmetric(vertical: 12),
-                            ),
-                            onPressed: () {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                    content: Text('Đăng ký bằng Google 🟢')),
-                              );
-                            },
-                            icon: const Icon(Icons.g_mobiledata,
-                                size: 28, color: Colors.redAccent),
-                            label: const Text('Đăng ký bằng Google'),
-                          ),
                           const SizedBox(height: 16),
 
-                          // 🔹 Dòng chữ: "Bạn đã có tài khoản?"
+                          //  Chuyển sang đăng nhập
                           Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
@@ -212,24 +179,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 onPressed: () {
                                   Navigator.pushReplacement(
                                     context,
-                                    PageRouteBuilder(
-                                      pageBuilder: (_, animation, __) =>
-                                      const LoginScreen(),
-                                      transitionsBuilder:
-                                          (_, animation, __, child) {
-                                        const begin = Offset(-1.0, 0.0);
-                                        const end = Offset.zero;
-                                        const curve = Curves.easeInOut;
-                                        final tween = Tween(
-                                            begin: begin, end: end)
-                                            .chain(CurveTween(curve: curve));
-                                        return SlideTransition(
-                                          position: animation.drive(tween),
-                                          child: child,
-                                        );
-                                      },
-                                      transitionDuration:
-                                      const Duration(milliseconds: 400),
+                                    MaterialPageRoute(
+                                      builder: (_) => const LoginScreen(),
                                     ),
                                   );
                                 },
@@ -253,6 +204,34 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
   }
 
+  //  Hàm xử lý đăng ký thật
+  Future<void> _handleRegister() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() => _loading = true);
+
+    final res = await AuthService.register(_email.text, _password.text);
+
+    setState(() => _loading = false);
+
+    if (res['error'] != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(res['error']), backgroundColor: Colors.redAccent),
+      );
+      return;
+    }
+
+    // Chuyển sang màn login
+    await Future.delayed(const Duration(milliseconds: 800));
+    if (mounted) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const LoginScreen()),
+      );
+    }
+  }
+
+  //  Input style tái sử dụng
   InputDecoration _inputStyle({
     required String label,
     required IconData icon,

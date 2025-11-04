@@ -1,7 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:movie_app/screens/home/Home_Screen.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:movie_app/screens/auth/login.dart';
+import 'config/api.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await dotenv.load(fileName: ".env");
+  await Api.init();
   runApp(const MyApp());
 }
 
@@ -21,7 +26,7 @@ class MyApp extends StatelessWidget {
           elevation: 0,
         ),
       ),
-      home: const HomeScreen(),
+      home: const LoginScreen(),
     );
   }
 }

@@ -8,7 +8,8 @@ import '../search/Search_Screen.dart';
 import '../watch/Watch_Screen.dart';
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+  final String email;
+  const HomeScreen({super.key, required this.email});
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
