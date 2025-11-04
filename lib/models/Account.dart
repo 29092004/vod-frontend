@@ -1,13 +1,11 @@
 class Account {
   final int accountId;
   final String email;
-  final String password;
   final String role;
 
   Account({
     required this.accountId,
     required this.email,
-    required this.password,
     required this.role,
   });
 
@@ -17,15 +15,13 @@ class Account {
           ? json['Account_id']
           : int.tryParse(json['Account_id'].toString()) ?? 0,
       email: json['Email'] ?? '',
-      password: json['Password'] ?? '',
-      role: json['role'] ?? '',
+      role: json['role'] ?? 'user',
     );
   }
 
   Map<String, dynamic> toJson() => {
     'Account_id': accountId,
     'Email': email,
-    'Password': password,
     'role': role,
   };
 }
