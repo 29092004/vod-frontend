@@ -15,7 +15,7 @@ class Account {
           ? json['Account_id']
           : int.tryParse(json['Account_id'].toString()) ?? 0,
       email: json['Email'] ?? '',
-      role: json['role'] ?? 'user',
+      role: json['role'] ?? 'User',
     );
   }
 
