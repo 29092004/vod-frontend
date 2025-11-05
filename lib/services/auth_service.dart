@@ -97,7 +97,6 @@ class AuthService {
   // 🔹 Đăng nhập bằng Google
   // ===============================
   static Future<Map<String, dynamic>> signInWithGoogle() async {
-
     if (!await _checkConnection()) {
       return {'error': 'Không có kết nối mạng'};
     }
@@ -105,10 +104,8 @@ class AuthService {
     try {
       final googleUser = await _googleSignIn.signIn();
       if (googleUser == null) {
-
         return {'error': 'Người dùng đã hủy đăng nhập Google'};
       }
-
 
       // Gửi thông tin người dùng đến backend
       final res = await Api.post('auth/google', {
@@ -117,9 +114,7 @@ class AuthService {
         'avatar': googleUser.photoUrl ?? '',
       });
 
-
       dynamic data = res.data;
-
       if (data is String) {
         try {
           data = jsonDecode(data);
@@ -134,19 +129,26 @@ class AuthService {
 
       final mapData = Map<String, dynamic>.from(data);
 
+      // ✅ Lưu token
       if (mapData['token'] != null &&
           mapData['token'].toString().isNotEmpty) {
         await Api.setToken(mapData['token']);
       }
 
+      // ✅ Sau khi có token → gọi /auth/me để lấy thông tin user
+      final me = await getMe();
+      if (me != null && me['user'] != null) {
+        mapData['user'] = me['user'];
+      }
+
       return mapData;
     } on DioException catch (e) {
-
       return {'error': Api.handleError(e)};
     } catch (e) {
       return {'error': 'Lỗi Google Sign-In: $e'};
     }
   }
+
 
 
   // Lấy thông tin người dùng (qua token)
@@ -174,12 +176,19 @@ class AuthService {
 
 
   // 🚪 Đăng xuất
+  // 🚪 Đăng xuất hoàn toàn khỏi Google
   static Future<void> logout() async {
     try {
       await Api.clearToken();
-      await _googleSignIn.signOut();
 
+      // ✅ Bắt buộc gọi cả hai để xóa cache đăng nhập Google
+      await _googleSignIn.signOut();
+      await _googleSignIn.disconnect();
+
+      print('✅ Đăng xuất hoàn tất, tài khoản Google đã bị hủy liên kết.');
     } catch (e) {
+      print('⚠️ Lỗi khi đăng xuất: $e');
     }
   }
+
 }
