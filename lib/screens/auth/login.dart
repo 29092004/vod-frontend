@@ -255,6 +255,49 @@ class _LoginScreenState extends State<LoginScreen> {
                                 ),
                               ),
                             ),
+                            // 🔹 Nút đăng nhập bằng Google
+                            SizedBox(
+                              width: double.infinity,
+                              height: 48,
+                              child: OutlinedButton.icon(
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: Colors.white,
+                                  side: const BorderSide(color: Colors.white24),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  backgroundColor: const Color(0xFF1A1B1E).withOpacity(0.9),
+                                ),
+                                icon: Image.asset(
+                                  'assets/icons/google.png', // bạn cần có icon này
+                                  width: 24,
+                                  height: 24,
+                                ),
+                                label: const Text(
+                                  'Đăng nhập bằng Google',
+                                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                                ),
+                                onPressed: () async {
+                                  final result = await AuthService.signInWithGoogle();
+                                  if (!mounted) return;
+
+                                  if (result['error'] != null) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(content: Text(result['error']), backgroundColor: Colors.redAccent),
+                                    );
+                                  } else {
+                                    // Nếu thành công → chuyển sang HomeScreen
+                                    final user = result['user'] ?? {};
+                                    final email = user['email'] ?? '';
+
+                                    Navigator.pushReplacement(
+                                      context,
+                                      MaterialPageRoute(builder: (_) => HomeScreen(email: email)),
+                                    );
+                                  }
+                                },
+                              ),
+                            ),
                             const SizedBox(height: 14),
 
                             // Đăng ký
