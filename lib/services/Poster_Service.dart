@@ -3,35 +3,29 @@ import '../config/api.dart';
 import '../models/Poster.dart';
 
 class PosterService {
-  static final Dio _dio = Api.client;
   static const String _endpoint = "/poster";
 
   /// 🔹 Lấy toàn bộ danh sách poster
   static Future<List<Poster>> getAll() async {
     try {
-      final response = await _dio.get(_endpoint);
-      if (response.statusCode == 200) {
-        final data = response.data is Map && response.data.containsKey('data')
-            ? response.data['data']
-            : response.data;
-        return List<Poster>.from(
-            (data as List).map((item) => Poster.fromJson(item)));
-      } else {
-        throw Exception("Không thể tải danh sách poster (${response.statusCode})");
-      }
+      final response = await Api.get(_endpoint);
+      final data = response.data is Map && response.data.containsKey('data')
+          ? response.data['data']
+          : response.data;
+      return List<Poster>.from((data as List).map((e) => Poster.fromJson(e)));
     } catch (e) {
-      throw Exception("Lỗi tải poster: $e");
+      throw Exception("Lỗi tải danh sách poster: $e");
     }
   }
 
   /// 🔹 Lấy poster theo ID
   static Future<Poster?> getById(int id) async {
     try {
-      final response = await _dio.get("$_endpoint/$id");
-      if (response.statusCode == 200) {
-        return Poster.fromJson(response.data);
-      }
-      return null;
+      final response = await Api.get("$_endpoint/$id");
+      final data = response.data is Map && response.data.containsKey('data')
+          ? response.data['data']
+          : response.data;
+      return Poster.fromJson(data);
     } catch (e) {
       throw Exception("Lỗi tải poster theo ID: $e");
     }
@@ -40,16 +34,11 @@ class PosterService {
   /// 🔹 Lấy danh sách poster theo Film_id
   static Future<List<Poster>> getByFilm(int filmId) async {
     try {
-      final response = await _dio.get("$_endpoint/film/$filmId");
-      if (response.statusCode == 200) {
-        final data = response.data is Map && response.data.containsKey('data')
-            ? response.data['data']
-            : response.data;
-        return List<Poster>.from(
-            (data as List).map((item) => Poster.fromJson(item)));
-      } else {
-        throw Exception("Không thể tải poster theo Film_id (${response.statusCode})");
-      }
+      final response = await Api.get("$_endpoint/film/$filmId");
+      final data = response.data is Map && response.data.containsKey('data')
+          ? response.data['data']
+          : response.data;
+      return List<Poster>.from((data as List).map((e) => Poster.fromJson(e)));
     } catch (e) {
       throw Exception("Lỗi tải poster theo Film_id: $e");
     }
@@ -58,7 +47,7 @@ class PosterService {
   /// 🔹 Thêm poster mới
   static Future<bool> create(Poster poster) async {
     try {
-      final response = await _dio.post(_endpoint, data: poster.toJson());
+      final response = await Api.post(_endpoint, poster.toJson());
       return response.statusCode == 200 || response.statusCode == 201;
     } catch (e) {
       throw Exception("Lỗi tạo poster: $e");
@@ -68,7 +57,7 @@ class PosterService {
   /// 🔹 Cập nhật poster
   static Future<bool> update(int id, Poster poster) async {
     try {
-      final response = await _dio.put("$_endpoint/$id", data: poster.toJson());
+      final response = await Api.put("$_endpoint/$id", poster.toJson());
       return response.statusCode == 200;
     } catch (e) {
       throw Exception("Lỗi cập nhật poster: $e");
@@ -78,7 +67,7 @@ class PosterService {
   /// 🔹 Xóa poster
   static Future<bool> delete(int id) async {
     try {
-      final response = await _dio.delete("$_endpoint/$id");
+      final response = await Api.delete("$_endpoint/$id");
       return response.statusCode == 200;
     } catch (e) {
       throw Exception("Lỗi xóa poster: $e");
