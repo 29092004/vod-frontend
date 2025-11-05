@@ -57,4 +57,17 @@ class FilmService {
       throw Exception("❌ Lỗi khi tìm kiếm phim: $e");
     }
   }
+
+  /// 🔹 Trang "Kho phim" — lấy tất cả phim có chi tiết
+  static Future<List<FilmInfo>> getSearchFilms() async {
+    try {
+      final response = await Api.get("$_endpoint/find/all");
+      final data = response.data is Map && response.data.containsKey('data')
+          ? response.data['data']
+          : response.data;
+      return List<FilmInfo>.from((data as List).map((e) => FilmInfo.fromJson(e)));
+    } catch (e) {
+      throw Exception("❌ Lỗi khi tải danh sách phim cho Kho phim: $e");
+    }
+  }
 }

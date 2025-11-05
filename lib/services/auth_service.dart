@@ -7,16 +7,14 @@ import '../config/api.dart';
 class AuthService {
   static final GoogleSignIn _googleSignIn = GoogleSignIn();
 
-
-  //  Kiểm tra kết nối mạng
+  // 🔹 Kiểm tra kết nối mạng
   static Future<bool> _checkConnection() async {
     final result = await Connectivity().checkConnectivity();
     final hasConnection = result != ConnectivityResult.none;
     return hasConnection;
   }
 
-
-  //  Đăng ký tài khoản thường
+  // 🔹 Đăng ký tài khoản thường
   static Future<Map<String, dynamic>> register(
       String email, String password) async {
     if (!await _checkConnection()) {
@@ -50,9 +48,7 @@ class AuthService {
     }
   }
 
-  // ===============================
   // 🔹 Đăng nhập bằng email & mật khẩu
-  // ===============================
   static Future<Map<String, dynamic>> login(
       String email, String password) async {
     if (!await _checkConnection()) {
@@ -64,7 +60,6 @@ class AuthService {
         'email': email.trim(),
         'password': password.trim(),
       });
-
 
       dynamic data = res.data;
       if (data is String) {
@@ -93,9 +88,7 @@ class AuthService {
     }
   }
 
-  // ===============================
   // 🔹 Đăng nhập bằng Google
-  // ===============================
   static Future<Map<String, dynamic>> signInWithGoogle() async {
     if (!await _checkConnection()) {
       return {'error': 'Không có kết nối mạng'};
@@ -107,7 +100,9 @@ class AuthService {
         return {'error': 'Người dùng đã hủy đăng nhập Google'};
       }
 
+
       // Gửi thông tin người dùng đến backend
+
       final res = await Api.post('auth/google', {
         'email': googleUser.email,
         'name': googleUser.displayName ?? '',
@@ -150,7 +145,6 @@ class AuthService {
   }
 
 
-
   // Lấy thông tin người dùng (qua token)
   static Future<Map<String, dynamic>?> getMe() async {
     try {
@@ -165,15 +159,13 @@ class AuthService {
       }
 
       if (data is Map) {
-
         return Map<String, dynamic>.from(data);
       }
       return null;
-    } on DioException catch (e) {
+    } on DioException {
       return null;
     }
   }
-
 
   // 🚪 Đăng xuất
   // 🚪 Đăng xuất hoàn toàn khỏi Google
@@ -185,6 +177,7 @@ class AuthService {
       await _googleSignIn.signOut();
       await _googleSignIn.disconnect();
 
+
       print('✅ Đăng xuất hoàn tất, tài khoản Google đã bị hủy liên kết.');
     } catch (e) {
       print('⚠️ Lỗi khi đăng xuất: $e');
@@ -192,3 +185,4 @@ class AuthService {
   }
 
 }
+
