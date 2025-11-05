@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../../models/Film_info.dart';
+import '../../services/Film_Service.dart';
 
 class SearchScreen extends StatefulWidget {
   const SearchScreen({super.key});
@@ -12,10 +14,27 @@ class _SearchScreenState extends State<SearchScreen>
   late TabController _tabController;
   final Map<String, String> selectedFilters = {};
 
+  List<FilmInfo> _films = [];
+  bool _isLoading = true;
+
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(length: 2, vsync: this);
+    _loadFilms();
+  }
+
+  Future<void> _loadFilms() async {
+    try {
+      final films = await FilmService.getSearchFilms(); // ✅ Gọi DB thật
+      setState(() {
+        _films = films;
+        _isLoading = false;
+      });
+    } catch (e) {
+      debugPrint("❌ Lỗi tải dữ liệu phim: $e");
+      setState(() => _isLoading = false);
+    }
   }
 
   @override
@@ -43,22 +62,26 @@ class _SearchScreenState extends State<SearchScreen>
           tabs: const [
             Tab(text: "Phim Bộ"),
             Tab(text: "Phim Lẻ"),
-            Tab(text: "Phim Ngắn"),
           ],
         ),
       ),
-      body: TabBarView(
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator(color: Colors.green))
+          : TabBarView(
         controller: _tabController,
         children: [
-          _buildCategoryTab(),
-          _buildCategoryTab(),
-          _buildCategoryTab(),
+          _buildCategoryTab(isSeries: true), // Phim Bộ
+          _buildCategoryTab(isSeries: false), // Phim Lẻ
         ],
       ),
     );
   }
 
-  Widget _buildCategoryTab() {
+  Widget _buildCategoryTab({required bool isSeries}) {
+    final filteredFilms = _films
+        .where((film) => film.isSeries == isSeries)
+        .toList(); // ✅ Lọc phim bộ / phim lẻ
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(12),
       child: Column(
@@ -78,7 +101,6 @@ class _SearchScreenState extends State<SearchScreen>
             "Bí Ẩn",
             "Cổ Trang"
           ]),
-          _buildFilterSection("Phụ đề", ["Toàn bộ phụ đề", "Dịch thủ công"]),
           _buildFilterSection("Thập niên", [
             "Toàn bộ các thập niên",
             "2025",
@@ -90,13 +112,13 @@ class _SearchScreenState extends State<SearchScreen>
           const SizedBox(height: 10),
           const Divider(color: Colors.grey, thickness: 0.2),
           const SizedBox(height: 10),
-          _buildMovieGrid(),
+          _buildMovieGrid(filteredFilms),
         ],
       ),
     );
   }
 
-  /// 🔹 Bộ lọc với chip chọn
+  /// 🔹 Bộ lọc giữ nguyên
   Widget _buildFilterSection(String title, List<String> options) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
@@ -133,28 +155,14 @@ class _SearchScreenState extends State<SearchScreen>
     );
   }
 
-  /// ✅ Grid danh sách phim (đã sửa hiển thị ảnh)
-  Widget _buildMovieGrid() {
-    final movies = [
-      {
-        "title": "Nhất Tiếu Tùy Ca",
-        "episodes": "Trọn bộ 38 tập",
-        "image": 'assets/anh_chinh/nhat_tieu_tuy_ca_chinh.jpg',
-        "tag": "Top 10"
-      },
-      {
-        "title": "Ám Hà Truyện",
-        "episodes": "Trọn bộ 12 tập",
-        "image": 'assets/anh_chinh/am_ha_truyen_chinh.jpg',
-        "tag": "Top 10"
-      },
-      {
-        "title": "Thần Đèn Ơi Ước Đi!",
-        "episodes": "Trọn bộ 10 tập",
-        "image": 'assets/anh_chinh/than_den_oi_uoc_di_chinh.jpg',
-        "tag": "Top 10"
-      },
-    ];
+  /// ✅ Grid hiển thị phim thật từ DB
+  Widget _buildMovieGrid(List<FilmInfo> films) {
+    if (films.isEmpty) {
+      return const Center(
+        child: Text("Không có phim nào",
+            style: TextStyle(color: Colors.grey, fontSize: 14)),
+      );
+    }
 
     return GridView.builder(
       physics: const NeverScrollableScrollPhysics(),
@@ -165,9 +173,9 @@ class _SearchScreenState extends State<SearchScreen>
         mainAxisSpacing: 12,
         childAspectRatio: 0.55,
       ),
-      itemCount: movies.length,
+      itemCount: films.length,
       itemBuilder: (context, index) {
-        final movie = movies[index];
+        final film = films[index];
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -175,8 +183,16 @@ class _SearchScreenState extends State<SearchScreen>
               children: [
                 ClipRRect(
                   borderRadius: BorderRadius.circular(8),
-                  child: Image.asset(
-                    movie["image"]!,
+                  child: film.posterMain != null &&
+                      film.posterMain!.isNotEmpty
+                      ? Image.network(
+                    film.posterMain!,
+                    height: 150,
+                    width: double.infinity,
+                    fit: BoxFit.cover,
+                  )
+                      : Image.asset(
+                    'assets/posters/default.jpg',
                     height: 150,
                     width: double.infinity,
                     fit: BoxFit.cover,
@@ -186,15 +202,15 @@ class _SearchScreenState extends State<SearchScreen>
                   top: 6,
                   left: 6,
                   child: Container(
-                    padding:
-                    const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 6, vertical: 2),
                     decoration: BoxDecoration(
                       color: Colors.green,
                       borderRadius: BorderRadius.circular(4),
                     ),
-                    child: Text(
-                      movie["tag"]!,
-                      style: const TextStyle(
+                    child: const Text(
+                      "Top 10",
+                      style: TextStyle(
                         color: Colors.black,
                         fontSize: 11,
                         fontWeight: FontWeight.bold,
@@ -206,11 +222,11 @@ class _SearchScreenState extends State<SearchScreen>
             ),
             const SizedBox(height: 6),
             Text(
-              movie["episodes"]!,
+              film.countryName ?? '',
               style: const TextStyle(color: Colors.grey, fontSize: 12),
             ),
             Text(
-              movie["title"]!,
+              film.originalName ?? film.filmName,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(color: Colors.white, fontSize: 13),

@@ -1,6 +1,7 @@
 class FilmInfo {
   final int filmId;
-  final String originalName;
+  final String filmName;           // 🔹 Tên phim (Film_name)
+  final String originalName;       // 🔹 Tên gốc
   final String description;
   final int releaseYear;
   final String duration;
@@ -11,13 +12,14 @@ class FilmInfo {
   final int totalEpisode;
   final String trailerUrl;
   final String filmStatus;
-
-  // 🔹 Hai loại ảnh khác nhau
-  final String posterMain;   // Ảnh chính (Postertype_id = 1)
-  final String posterBanner; // Ảnh ngang cho banner (Postertype_id = 3)
+  final bool isSeries;             // 🔹 Phim bộ / phim lẻ
+  final String genres;             // 🔹 Danh sách thể loại (chuỗi)
+  final String posterMain;         // 🔹 Ảnh chính (Postertype_id = 1)
+  final String posterBanner;       // 🔹 Ảnh ngang (Postertype_id = 3)
 
   FilmInfo({
     required this.filmId,
+    required this.filmName,
     required this.originalName,
     required this.description,
     required this.releaseYear,
@@ -29,6 +31,8 @@ class FilmInfo {
     required this.totalEpisode,
     required this.trailerUrl,
     required this.filmStatus,
+    required this.isSeries,
+    required this.genres,
     required this.posterMain,
     required this.posterBanner,
   });
@@ -38,6 +42,7 @@ class FilmInfo {
       filmId: json['Film_id'] is int
           ? json['Film_id']
           : int.tryParse(json['Film_id'].toString()) ?? 0,
+      filmName: json['Film_name'] ?? '',
       originalName: json['Original_name'] ?? '',
       description: json['Description'] ?? '',
       releaseYear: json['Release_year'] is int
@@ -57,13 +62,18 @@ class FilmInfo {
           : int.tryParse(json['total_episode'].toString()) ?? 0,
       trailerUrl: json['trailer_url'] ?? '',
       filmStatus: json['film_status'] ?? '',
-      posterMain: json['poster_main'] ?? '',     // ✅ Ảnh chính
-      posterBanner: json['poster_banner'] ?? '', // ✅ Ảnh banner
+      isSeries: json['is_series'] == 1 ||
+          json['is_series'] == true ||
+          json['is_series'] == 'true',
+      genres: json['genres'] ?? '',
+      posterMain: json['poster_main'] ?? '',
+      posterBanner: json['poster_banner'] ?? '',
     );
   }
 
   Map<String, dynamic> toJson() => {
     'Film_id': filmId,
+    'Film_name': filmName,
     'Original_name': originalName,
     'Description': description,
     'Release_year': releaseYear,
@@ -75,6 +85,8 @@ class FilmInfo {
     'total_episode': totalEpisode,
     'trailer_url': trailerUrl,
     'film_status': filmStatus,
+    'is_series': isSeries,
+    'genres': genres,
     'poster_main': posterMain,
     'poster_banner': posterBanner,
   };

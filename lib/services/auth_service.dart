@@ -7,16 +7,14 @@ import '../config/api.dart';
 class AuthService {
   static final GoogleSignIn _googleSignIn = GoogleSignIn();
 
-
-  //  Kiểm tra kết nối mạng
+  // 🔹 Kiểm tra kết nối mạng
   static Future<bool> _checkConnection() async {
     final result = await Connectivity().checkConnectivity();
     final hasConnection = result != ConnectivityResult.none;
     return hasConnection;
   }
 
-
-  //  Đăng ký tài khoản thường
+  // 🔹 Đăng ký tài khoản thường
   static Future<Map<String, dynamic>> register(
       String email, String password) async {
     if (!await _checkConnection()) {
@@ -50,9 +48,7 @@ class AuthService {
     }
   }
 
-  // ===============================
   // 🔹 Đăng nhập bằng email & mật khẩu
-  // ===============================
   static Future<Map<String, dynamic>> login(
       String email, String password) async {
     if (!await _checkConnection()) {
@@ -64,7 +60,6 @@ class AuthService {
         'email': email.trim(),
         'password': password.trim(),
       });
-
 
       dynamic data = res.data;
       if (data is String) {
@@ -93,11 +88,8 @@ class AuthService {
     }
   }
 
-  // ===============================
   // 🔹 Đăng nhập bằng Google
-  // ===============================
   static Future<Map<String, dynamic>> signInWithGoogle() async {
-
     if (!await _checkConnection()) {
       return {'error': 'Không có kết nối mạng'};
     }
@@ -105,18 +97,15 @@ class AuthService {
     try {
       final googleUser = await _googleSignIn.signIn();
       if (googleUser == null) {
-
         return {'error': 'Người dùng đã hủy đăng nhập Google'};
       }
 
-
-      // Gửi thông tin người dùng đến backend
+    // Gửi thông tin người dùng đến backend
       final res = await Api.post('auth/google', {
         'email': googleUser.email,
         'name': googleUser.displayName ?? '',
         'avatar': googleUser.photoUrl ?? '',
       });
-
 
       dynamic data = res.data;
 
@@ -141,15 +130,13 @@ class AuthService {
 
       return mapData;
     } on DioException catch (e) {
-
       return {'error': Api.handleError(e)};
     } catch (e) {
       return {'error': 'Lỗi Google Sign-In: $e'};
     }
   }
 
-
-  // Lấy thông tin người dùng (qua token)
+  // 🔹 Lấy thông tin người dùng (qua token)
   static Future<Map<String, dynamic>?> getMe() async {
     try {
       final res = await Api.get('auth/me');
@@ -163,23 +150,23 @@ class AuthService {
       }
 
       if (data is Map) {
-
         return Map<String, dynamic>.from(data);
       }
       return null;
-    } on DioException catch (e) {
+    } on DioException {
       return null;
     }
   }
-
 
   // 🚪 Đăng xuất
   static Future<void> logout() async {
     try {
       await Api.clearToken();
       await _googleSignIn.signOut();
-
+      await _googleSignIn.disconnect();
+      print('✅ Đăng xuất hoàn tất');
     } catch (e) {
+      print('⚠️ Lỗi khi đăng xuất: $e');
     }
   }
 }
