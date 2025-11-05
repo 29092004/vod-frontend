@@ -46,7 +46,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _loadFilms() async {
     try {
-      final films = await _filmService.getHomeFilms();
+      final films = await FilmService.getHomeFilms();
       setState(() {
         _films = films;
         _isLoading = false;
