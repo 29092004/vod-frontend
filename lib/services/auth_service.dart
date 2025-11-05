@@ -100,7 +100,9 @@ class AuthService {
         return {'error': 'Người dùng đã hủy đăng nhập Google'};
       }
 
-    // Gửi thông tin người dùng đến backend
+
+      // Gửi thông tin người dùng đến backend
+
       final res = await Api.post('auth/google', {
         'email': googleUser.email,
         'name': googleUser.displayName ?? '',
@@ -108,7 +110,6 @@ class AuthService {
       });
 
       dynamic data = res.data;
-
       if (data is String) {
         try {
           data = jsonDecode(data);
@@ -123,9 +124,16 @@ class AuthService {
 
       final mapData = Map<String, dynamic>.from(data);
 
+      // ✅ Lưu token
       if (mapData['token'] != null &&
           mapData['token'].toString().isNotEmpty) {
         await Api.setToken(mapData['token']);
+      }
+
+      // ✅ Sau khi có token → gọi /auth/me để lấy thông tin user
+      final me = await getMe();
+      if (me != null && me['user'] != null) {
+        mapData['user'] = me['user'];
       }
 
       return mapData;
@@ -136,7 +144,8 @@ class AuthService {
     }
   }
 
-  // 🔹 Lấy thông tin người dùng (qua token)
+
+  // Lấy thông tin người dùng (qua token)
   static Future<Map<String, dynamic>?> getMe() async {
     try {
       final res = await Api.get('auth/me');
@@ -159,14 +168,21 @@ class AuthService {
   }
 
   // 🚪 Đăng xuất
+  // 🚪 Đăng xuất hoàn toàn khỏi Google
   static Future<void> logout() async {
     try {
       await Api.clearToken();
+
+      // ✅ Bắt buộc gọi cả hai để xóa cache đăng nhập Google
       await _googleSignIn.signOut();
       await _googleSignIn.disconnect();
-      print('✅ Đăng xuất hoàn tất');
+
+
+      print('✅ Đăng xuất hoàn tất, tài khoản Google đã bị hủy liên kết.');
     } catch (e) {
       print('⚠️ Lỗi khi đăng xuất: $e');
     }
   }
+
 }
+

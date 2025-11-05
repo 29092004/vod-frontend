@@ -283,19 +283,36 @@ class _LoginScreenState extends State<LoginScreen> {
 
                                   if (result['error'] != null) {
                                     ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(content: Text(result['error']), backgroundColor: Colors.redAccent),
+                                      SnackBar(
+                                        content: Text(result['error']),
+                                        backgroundColor: Colors.redAccent,
+                                      ),
                                     );
                                   } else {
-                                    // Nếu thành công → chuyển sang HomeScreen
-                                    final user = result['user'] ?? {};
-                                    final email = user['email'] ?? '';
+                                    // ✅ Gọi lại API /auth/me để lấy thông tin người dùng (email, role,...)
+                                    final me = await AuthService.getMe();
+                                    final user = me?['user'] ?? {};
+                                    final email = user['email'] ?? 'Người dùng';
 
+                                    // ✅ In log để kiểm tra
+                                    print('🟢 Google user info: $user');
+
+                                    // ✅ Hiển thị thông báo thành công
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text('Đăng nhập Google thành công: $email'),
+                                        backgroundColor: Colors.green,
+                                      ),
+                                    );
+
+                                    // ✅ Chuyển sang Home hoặc Account tùy bạn
                                     Navigator.pushReplacement(
                                       context,
                                       MaterialPageRoute(builder: (_) => HomeScreen(email: email)),
                                     );
                                   }
                                 },
+
                               ),
                             ),
                             const SizedBox(height: 14),
