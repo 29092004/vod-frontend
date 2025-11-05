@@ -1,11 +1,10 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-
-// 🔹 Import các màn hình có sẵn
+import 'package:movie_app/services/Film_Service.dart';
+import '../../models/Film_info.dart';
 import '../detail/Detail_Films.dart';
 import '../profile/Profile_Screen.dart';
 import '../search/Search_Screen.dart';
-import '../watch/Watch_Screen.dart';
 
 class HomeScreen extends StatefulWidget {
   final String email;
@@ -21,57 +20,21 @@ class _HomeScreenState extends State<HomeScreen> {
   final PageController _pageController = PageController();
   Timer? _timer;
 
-  final List<Map<String, String>> banners = [
-    {
-      "image": "assets/posters/am_ha_truyen.jpg",
-      "title": "Ám Hà Truyện",
-      "desc": "Hành Động • 2024",
-      "url360": "https://example.r2.cloud/ngutru_360.mp4",
-      "url720": "https://example.r2.cloud/ngutru_720.mp4",
-      "posterUrl": "assets/posters/am_ha_truyen.jpg"
-    },
-    {
-      "image": "assets/posters/tuyet_canh_ba.jpg",
-      "title": "Tuyết Canh Ba",
-      "desc": "Trung Quốc",
-      "url480":
-      "https://pub-ba53485be5b04ffe9192e4aae5ed2da6.r2.dev/phimtuyecanhba/480p/tuyetcanhba_480.m3u8",
-      "url720":
-      "https://pub-ba53485be5b04ffe9192e4aae5ed2da6.r2.dev/phimtuyecanhba/720p/tuyetcanhba_720p.m3u8",
-      "posterUrl": "assets/posters/tuyet_canh_ba.jpg"
-    },
-    {
-      "image": "assets/posters/nhat_tieu_tuy_ca.jpg",
-      "title": "Nhất Tiếu Tùy Ca",
-      "desc": "Trung Quốc",
-      "url360": "https://example.r2.cloud/nhattieutuyca_360.mp4",
-      "url720": "https://example.r2.cloud/nhattieutuyca_720.mp4",
-      "posterUrl": "assets/posters/nhat_tieu_tuy_ca.jpg"
-    },
-    {
-      "image": "assets/posters/than_den_oi_uoc_di.jpg",
-      "title": "Thần Đèn Ơi Ước Đi!",
-      "desc": "Hài hước • 2024",
-      "url360": "https://example.r2.cloud/thanden_360.mp4",
-      "url720": "https://example.r2.cloud/thanden_720.mp4",
-      "posterUrl": "assets/posters/than_den_oi_uoc_di.jpg"
-    },
-    {
-      "image": "assets/posters/ngu_tru_cua_bao_chua.jpg",
-      "title": "Ngự Trù Của Bạo Chúa!",
-      "desc": "Hài hước • 2024",
-      "url360": "https://example.r2.cloud/ngutru_360.mp4",
-      "url720": "https://example.r2.cloud/ngutru_720.mp4",
-      "posterUrl": "assets/posters/ngu_tru_cua_bao_chua.jpg"
-    },
-  ];
+  final FilmService _filmService = FilmService();
+  List<FilmInfo> _films = [];
+  bool _isLoading = true;
+
+  // 🔹 Quốc gia đang chọn
+  String _selectedCountry = "Tất cả";
 
   @override
   void initState() {
     super.initState();
+    _loadFilms();
+
     _timer = Timer.periodic(const Duration(seconds: 5), (timer) {
-      if (_pageController.hasClients) {
-        int nextPage = (_currentBanner + 1) % banners.length;
+      if (_pageController.hasClients && _films.isNotEmpty) {
+        int nextPage = (_currentBanner + 1) % _films.length;
         _pageController.animateToPage(
           nextPage,
           duration: const Duration(milliseconds: 800),
@@ -79,6 +42,19 @@ class _HomeScreenState extends State<HomeScreen> {
         );
       }
     });
+  }
+
+  Future<void> _loadFilms() async {
+    try {
+      final films = await _filmService.getHomeFilms();
+      setState(() {
+        _films = films;
+        _isLoading = false;
+      });
+    } catch (e) {
+      debugPrint("❌ Lỗi tải danh sách phim: $e");
+      setState(() => _isLoading = false);
+    }
   }
 
   @override
@@ -119,7 +95,24 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  // 🔹 Trang chủ
   Widget _buildTrangChu(BuildContext context) {
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator(color: Colors.green));
+    }
+
+    if (_films.isEmpty) {
+      return const Center(
+        child: Text('Không có dữ liệu phim',
+            style: TextStyle(color: Colors.white, fontSize: 18)),
+      );
+    }
+
+    // 🔹 Lọc phim theo quốc gia
+    final vietNamFilms = _films.where((f) => f.countryName == "Việt Nam").toList();
+    final hanFilms = _films.where((f) => f.countryName == "Hàn Quốc").toList();
+    final trungFilms = _films.where((f) => f.countryName == "Trung Quốc").toList();
+
     return SafeArea(
       child: SingleChildScrollView(
         child: Column(
@@ -128,110 +121,77 @@ class _HomeScreenState extends State<HomeScreen> {
             // Header
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text("VTC Movie",
-                      style: TextStyle(
-                          color: Colors.green,
-                          fontSize: 26,
-                          fontWeight: FontWeight.bold)),
                   Row(
-                    children: const [
-                      Icon(Icons.search, color: Colors.white),
-                      SizedBox(width: 12),
-                      Icon(Icons.workspace_premium, color: Colors.amber),
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Row(
+                        children: [
+                          Icon(Icons.movie_creation_outlined,
+                              color: Colors.green, size: 28),
+                          SizedBox(width: 6),
+                          Text("VTC Movie",
+                              style: TextStyle(
+                                  color: Colors.green,
+                                  fontSize: 24,
+                                  fontWeight: FontWeight.bold)),
+                        ],
+                      ),
+                      Row(
+                        children: const [
+                          Icon(Icons.search, color: Colors.white),
+                          SizedBox(width: 12),
+                          Icon(Icons.workspace_premium, color: Colors.amber),
+                        ],
+                      )
                     ],
-                  )
-                ],
-              ),
-            ),
+                  ),
+                  const SizedBox(height: 10),
 
-            // Tabs ngang
-            SizedBox(
-              height: 40,
-              child: ListView(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 10),
-                children: const [
-                  CategoryTab(title: "Đề xuất", selected: true),
-                  CategoryTab(title: "Phim Hàn"),
-                  CategoryTab(title: "Phim Trung"),
-                  CategoryTab(title: "Phim Việt"),
-                  CategoryTab(title: "Show"),
+                  // 🔹 Thanh chọn quốc gia
+                  SizedBox(
+                    height: 36,
+                    child: ListView(
+                      scrollDirection: Axis.horizontal,
+                      children: [
+                        _buildCountryTab("Tất cả"),
+                        _buildCountryTab("Việt Nam"),
+                        _buildCountryTab("Hàn Quốc"),
+                        _buildCountryTab("Trung Quốc"),
+                        _buildCountryTab("Mỹ"),
+                      ],
+                    ),
+                  ),
                 ],
               ),
             ),
 
             const SizedBox(height: 10),
 
-            // Banner
-            _buildBannerSection(),
+            // 🔹 Banner — LUÔN GIỮ NGUYÊN KHÔNG LỌC
+            _buildBannerSection(_films),
 
             const SizedBox(height: 20),
 
-            _buildMovieSection(
-              title: "Top 10 Phim Thịnh Hành",
-              movies: const [
-                MovieCardFull(
-                    image: 'assets/anh_chinh/ngu_tru_cua_bao_chua_chinh.jpg',
-                    title: 'Ngự Trù Của Báo Chúa'),
-                MovieCardFull(
-                    image: 'assets/anh_chinh/nhat_tieu_tuy_ca_chinh.jpg',
-                    title: 'Nhất Tiếu Tùy Ca'),
-                MovieCardFull(
-                    image: 'assets/anh_chinh/than_den_oi_uoc_di_chinh.jpg',
-                    title: 'Thần Đèn Ơi Ước Đi!'),
-                MovieCardFull(
-                    image: 'assets/anh_chinh/tuyet_canh_ba_chinh.jpg',
-                    title: 'Tuyết Canh Ba'),
-              ],
-            ),
-
-            _buildMovieSection(
-              title: "Phim Việt Nam ",
-              movies: const [
-                MovieCardFull(
-                    image: 'assets/anh_chinh/tham_tu_kien_chinh.jpg',
-                    title: 'Thám Tử Kiên: Kỳ án Không Đầu'),
-                MovieCardFull(
-                    image: 'assets/anh_chinh/cach_em_1_milimet_chinh.jpg',
-                    title: 'Cách em 1 milimet'),
-                MovieCardFull(
-                    image: 'assets/anh_chinh/gio_ngang_khoang_troi_xanh_chinh.jpg',
-                    title: 'Gió Ngang Khoảng Trời Xanh'),
-              ],
-            ),
-
-            _buildMovieSection(
-              title: "Phim Hàn Quốc",
-              movies: const [
-                MovieCardFull(
-                    image: 'assets/anh_chinh/ngu_tru_cua_bao_chua_chinh.jpg',
-                    title: 'Ngự Trù Của Bạo Chúa'),
-                MovieCardFull(
-                    image: 'assets/anh_chinh/than_den_oi_uoc_di_chinh.jpg',
-                    title: 'Thần Đèn Ơi Ước Đi'),
-                MovieCardFull(
-                    image: 'assets/anh_chinh/cung_dien_ma_am_chinh.jpg',
-                    title: 'Cung Điện Ma Ám'),
-              ],
-            ),
-
-            _buildMovieSection(
-              title: "Phim Trung Quốc",
-              movies: const [
-                MovieCardFull(
-                    image: 'assets/anh_chinh/tuyet_canh_ba_chinh.jpg',
-                    title: 'Tuyết Canh Ba'),
-                MovieCardFull(
-                    image: 'assets/anh_chinh/nhat_tieu_tuy_ca_chinh.jpg',
-                    title: 'Nhất Tiếu Tùy Ca'),
-                MovieCardFull(
-                    image: 'assets/anh_chinh/am_ha_truyen_chinh.jpg',
-                    title: 'Ám Hà Truyện'),
-              ],
-            ),
+            // 🔹 Nếu chọn "Tất cả" => hiện đủ Top 10 + 3 quốc gia
+            if (_selectedCountry == "Tất cả") ...[
+              _buildMovieSection(
+                title: "Top 10 Phim Thịnh Hành",
+                films: _films.take(10).toList(),
+              ),
+              _buildMovieSection(title: "Phim Việt Nam", films: vietNamFilms),
+              _buildMovieSection(title: "Phim Hàn Quốc", films: hanFilms),
+              _buildMovieSection(title: "Phim Trung Quốc", films: trungFilms),
+            ]
+            // 🔹 Nếu chọn quốc gia => chỉ hiển thị danh mục quốc gia, ẨN Top 10
+            else if (_selectedCountry == "Việt Nam")
+              _buildMovieSection(title: "Phim Việt Nam", films: vietNamFilms)
+            else if (_selectedCountry == "Hàn Quốc")
+                _buildMovieSection(title: "Phim Hàn Quốc", films: hanFilms)
+              else if (_selectedCountry == "Trung Quốc")
+                  _buildMovieSection(title: "Phim Trung Quốc", films: trungFilms),
 
             const SizedBox(height: 30),
           ],
@@ -240,183 +200,183 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // Banner Section
-  Widget _buildBannerSection() {
+  // 🔹 Banner giữ nguyên
+  Widget _buildBannerSection(List<FilmInfo> films) {
     return SizedBox(
       height: 250,
       width: double.infinity,
       child: PageView.builder(
         controller: _pageController,
-        itemCount: banners.length,
+        itemCount: films.length,
         onPageChanged: (index) => setState(() => _currentBanner = index),
         itemBuilder: (context, index) {
-          final banner = banners[index];
-          final url360 = banner["url360"] ?? banner["url480"];
-          final url720 = banner["url720"];
-          final posterUrl = banner["posterUrl"];
+          final film = films[index];
+          final bannerUrl =
+          film.posterBanner.isNotEmpty ? film.posterBanner : film.posterMain;
 
-          return GestureDetector(
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => DetailFilmScreen(
-                    title: banner["title"] ?? "Không rõ tên",
-                    description: banner["desc"] ?? "Mô tả đang cập nhật...",
-                    director: "Đạo diễn đang cập nhật",
-                    posterUrl: posterUrl ?? "",
-                    url360: url360 ?? "",
-                    url720: url720 ?? "",
-                  ),
-                ),
-              );
-            },
-            child: Stack(
-              children: [
-                Image.asset(banner["image"] ?? "",
-                    width: double.infinity, height: 250, fit: BoxFit.cover),
-                Container(
+          return Stack(
+            children: [
+              Image.network(
+                bannerUrl,
+                width: double.infinity,
+                height: 250,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => Image.asset(
+                  'assets/posters/default.jpg',
                   width: double.infinity,
                   height: 250,
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        Colors.black.withOpacity(0.6),
-                        Colors.transparent,
-                        Colors.black.withOpacity(0.6)
-                      ],
-                      begin: Alignment.bottomCenter,
-                      end: Alignment.topCenter,
-                    ),
-                  ),
+                  fit: BoxFit.cover,
                 ),
-                Positioned(
-                  bottom: 20,
-                  left: 16,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(banner["title"] ?? "",
-                          style: const TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white)),
-                      Text(banner["desc"] ?? "",
-                          style: const TextStyle(color: Colors.grey)),
+              ),
+              Container(
+                width: double.infinity,
+                height: 250,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      Colors.black.withOpacity(0.6),
+                      Colors.transparent,
+                      Colors.black.withOpacity(0.6)
                     ],
+                    begin: Alignment.bottomCenter,
+                    end: Alignment.topCenter,
                   ),
                 ),
-              ],
-            ),
+              ),
+              Positioned(
+                bottom: 20,
+                left: 16,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(film.originalName,
+                        style: const TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white)),
+                    Text("${film.countryName} • ${film.releaseYear}",
+                        style: const TextStyle(color: Colors.grey)),
+                  ],
+                ),
+              ),
+            ],
           );
         },
       ),
     );
   }
 
-  // Movie section reuse
+  // 🔹 Movie Section
   Widget _buildMovieSection({
     required String title,
-    required List<MovieCardFull> movies,
+    required List<FilmInfo> films,
   }) {
+    if (films.isEmpty) return const SizedBox.shrink();
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-          child: Text(title,
-              style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white)),
+          child: Text(
+            title,
+            style: const TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+            ),
+          ),
         ),
         SizedBox(
-          height: 250,
-          child: ListView(
+          height: 260,
+          child: ListView.builder(
             scrollDirection: Axis.horizontal,
-            children: movies,
+            itemCount: films.length,
+            itemBuilder: (context, index) {
+              final film = films[index];
+              final mainPoster =
+              film.posterMain.isNotEmpty ? film.posterMain : film.posterBanner;
+
+              return GestureDetector(
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => DetailFilmScreen(
+                        title: film.originalName,
+                        description: film.description.isEmpty
+                            ? film.countryName
+                            : film.description,
+                        director: "Đạo diễn đang cập nhật...",
+                        posterUrl: mainPoster,
+                        url360: film.trailerUrl,
+                        url720: film.trailerUrl,
+                      ),
+                    ),
+                  );
+                },
+                child: Container(
+                  width: 150,
+                  margin: const EdgeInsets.only(left: 10, right: 4),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(10),
+                        child: Image.network(
+                          mainPoster,
+                          height: 200,
+                          width: 150,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => Image.asset(
+                            'assets/posters/default.jpg',
+                            height: 200,
+                            width: 150,
+                            fit: BoxFit.cover,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        film.originalName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          color: Colors.white,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      Text(
+                        film.countryName,
+                        style: const TextStyle(fontSize: 12, color: Colors.grey),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
           ),
         ),
       ],
     );
   }
-}
 
-// --- Widget phụ ---
-class CategoryTab extends StatelessWidget {
-  final String title;
-  final bool selected;
-
-  const CategoryTab({super.key, required this.title, this.selected = false});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 6),
-      child: Text(
-        title,
-        style: TextStyle(
-          color: selected ? Colors.white : Colors.grey,
-          fontWeight: selected ? FontWeight.bold : FontWeight.normal,
-          fontSize: 16,
-        ),
-      ),
-    );
-  }
-}
-
-// --- Card phim full hình (bo góc + spacing đẹp) ---
-class MovieCardFull extends StatelessWidget {
-  final String image;
-  final String title;
-
-  const MovieCardFull({super.key, required this.image, required this.title});
-
-  @override
-  Widget build(BuildContext context) {
+  // 🔹 Tab quốc gia
+  Widget _buildCountryTab(String label) {
+    final bool selected = _selectedCountry == label;
     return GestureDetector(
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => DetailFilmScreen(
-              title: title,
-              description: "Mô tả phim đang cập nhật...",
-              director: "Đạo diễn đang cập nhật",
-              posterUrl: image,
-              url360: "https://example.r2.cloud/sample_360.mp4",
-              url720: "https://example.r2.cloud/sample_720.mp4",
-            ),
-          ),
-        );
-      },
+      onTap: () => setState(() => _selectedCountry = label),
       child: Container(
-        width: 150,
-        margin: const EdgeInsets.only(left: 10, right: 4),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(10),
-              child: Image.asset(
-                image,
-                height: 210,
-                width: 150,
-                fit: BoxFit.cover,
-              ),
-            ),
-            const SizedBox(height: 5),
-            Text(
-              title,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                fontSize: 14,
-                color: Colors.white,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
+        margin: const EdgeInsets.only(right: 14),
+        alignment: Alignment.center,
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 16,
+            color: selected ? Colors.white : Colors.grey,
+            fontWeight: selected ? FontWeight.bold : FontWeight.normal,
+          ),
         ),
       ),
     );
