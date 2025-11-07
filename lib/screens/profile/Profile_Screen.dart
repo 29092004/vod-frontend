@@ -1,6 +1,8 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import '../auth/login.dart';
 import '../../services/auth_service.dart';
+import '../../config/api.dart';
 
 class AccountScreen extends StatefulWidget {
   const AccountScreen({super.key});
@@ -10,7 +12,7 @@ class AccountScreen extends StatefulWidget {
 }
 
 class _AccountScreenState extends State<AccountScreen> {
-  Map<String, dynamic>? _user; // Lưu thông tin người dùng
+  Map<String, dynamic>? _user;
   bool _loading = true;
 
   @override
@@ -22,7 +24,7 @@ class _AccountScreenState extends State<AccountScreen> {
   Future<void> _loadUser() async {
     final userData = await AuthService.getMe();
     setState(() {
-      _user = userData?['user']; // backend trả về { success: true, user: {...} }
+      _user = userData?['user'];
       _loading = false;
     });
   }
@@ -37,29 +39,25 @@ class _AccountScreenState extends State<AccountScreen> {
             : SingleChildScrollView(
           child: Column(
             children: [
-              // 🔹 Header: avatar + email hoặc đăng nhập
               Padding(
                 padding: const EdgeInsets.all(16),
                 child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
+                    // Avatar người dùng
                     CircleAvatar(
                       radius: 30,
-                      backgroundColor: Colors.grey,
-                      backgroundImage: _user != null &&
-                          _user!['avatar'] != null &&
-                          _user!['avatar'] != ''
-                          ? NetworkImage(_user!['avatar'])
-                          : null,
+                      backgroundColor: Colors.grey.shade800,
+                      backgroundImage: _buildAvatarImage(),
                       child: (_user == null ||
                           _user!['avatar'] == null ||
-                          _user!['avatar'] == '')
+                          _user!['avatar'].toString().isEmpty)
                           ? const Icon(Icons.person,
-                          size: 40, color: Colors.black54)
+                          size: 40, color: Colors.white70)
                           : null,
                     ),
-                    const SizedBox(width: 12),
 
-                    // 🔹 Hiển thị email hoặc nút đăng nhập
+                    const SizedBox(width: 12),
                     Expanded(
                       child: GestureDetector(
                         onTap: _user == null
@@ -72,17 +70,45 @@ class _AccountScreenState extends State<AccountScreen> {
                           );
                         }
                             : null,
-                        child: Text(
-                          _user != null
-                              ? (_user!['email'] ??
-                              _user!['name'] ??
-                              'Người dùng')
-                              : "Đăng nhập / Đăng ký",
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    _user != null
+                                        ? (_user!['name'] ??
+                                        _user!['email'] ??
+                                        'Người dùng')
+                                        : "Đăng nhập / Đăng ký",
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                                if (_user != null)
+                                  IconButton(
+                                    onPressed: () =>
+                                        _changeDisplayName(context),
+                                    icon: const Icon(Icons.edit,
+                                        color: Colors.white70, size: 18),
+                                    tooltip: "Đổi tên hiển thị",
+                                  ),
+                              ],
+                            ),
+                            if (_user != null && _user!['email'] != null)
+                              Text(
+                                _user!['email'],
+                                style: const TextStyle(
+                                  color: Colors.white70,
+                                  fontSize: 14,
+                                ),
+                              ),
+                          ],
                         ),
                       ),
                     ),
@@ -105,7 +131,6 @@ class _AccountScreenState extends State<AccountScreen> {
 
               const SizedBox(height: 30),
 
-              //  Nút đăng xuất
               if (_user != null)
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -126,9 +151,7 @@ class _AccountScreenState extends State<AccountScreen> {
                         fontWeight: FontWeight.bold,
                       ),
                     ),
-                    onPressed: () async {
-                      await _logout(context);
-                    },
+                    onPressed: () async => _logout(context),
                   ),
                 ),
 
@@ -140,6 +163,29 @@ class _AccountScreenState extends State<AccountScreen> {
     );
   }
 
+  /// 🟢 Hàm chọn loại ImageProvider an toàn
+  ImageProvider? _buildAvatarImage() {
+    if (_user == null || _user!['avatar'] == null) return null;
+
+    final avatar = _user!['avatar'].toString().trim();
+    if (avatar.isEmpty) return null;
+
+    if (avatar.startsWith('http')) {
+      // URL mạng
+      return NetworkImage(avatar);
+    } else if (avatar.startsWith('/storage') || avatar.startsWith('/data')) {
+      // File cục bộ
+      return FileImage(File(avatar));
+    } else if (avatar.startsWith('file://')) {
+      // File cục bộ có prefix
+      return FileImage(File(Uri.parse(avatar).path));
+    } else if (!avatar.contains('://')) {
+
+      return NetworkImage('${Api.baseHost}$avatar');
+    }
+
+    return null;
+  }
   Widget _buildMenuItem(IconData icon, String title, VoidCallback onTap) {
     return ListTile(
       leading: Icon(icon, color: Colors.white),
@@ -149,21 +195,13 @@ class _AccountScreenState extends State<AccountScreen> {
       onTap: onTap,
     );
   }
-
-  // 🔹 Hàm xử lý đăng xuất
   Future<void> _logout(BuildContext context) async {
     try {
       await AuthService.logout();
-
-      // 🔹 Xóa thông tin user
       setState(() => _user = null);
-
-      // 🔹 Hiển thị thông báo
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Đã đăng xuất thành công")),
       );
-
-      // 🔹 Điều hướng về LoginScreen (xóa toàn bộ stack cũ)
       Navigator.pushAndRemoveUntil(
         context,
         MaterialPageRoute(builder: (_) => const LoginScreen()),
@@ -174,6 +212,99 @@ class _AccountScreenState extends State<AccountScreen> {
         SnackBar(content: Text("Lỗi khi đăng xuất: $e")),
       );
     }
+  }
+  Future<void> _changeDisplayName(BuildContext context) async {
+    final nameController = TextEditingController(text: _user?['name'] ?? '');
+
+    await showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: Colors.grey[900],
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text(
+          'Đổi tên hiển thị',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        ),
+        content: TextField(
+          controller: nameController,
+          style: const TextStyle(color: Colors.white),
+          cursorColor: Colors.redAccent,
+          textInputAction: TextInputAction.done,
+          decoration: const InputDecoration(
+            hintText: 'Nhập tên mới...',
+            hintStyle: TextStyle(color: Colors.white54),
+            enabledBorder: UnderlineInputBorder(
+              borderSide: BorderSide(color: Colors.white24),
+            ),
+            focusedBorder: UnderlineInputBorder(
+              borderSide: BorderSide(color: Colors.redAccent),
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Hủy', style: TextStyle(color: Colors.white54)),
+          ),
+          TextButton(
+            onPressed: () async {
+              final newName = nameController.text.trim();
+              if (newName.isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text("Tên không được để trống")),
+                );
+                return;
+              }
+
+              Navigator.pop(context);
+
+              try {
+                // Lấy ID profile
+                final profileId = _user?['profile_id'] ?? _user?['Profile_id'];
+                if (profileId == null) {
+                  throw Exception("Không tìm thấy ID profile để cập nhật");
+                }
+                final res = await Api.put('profiles/$profileId', {
+                  'profile_name': newName,
+                });
+
+                if (res.data['success'] == true) {
+                  // Cập nhật UI ngay
+                  setState(() {
+                    _user!['name'] = newName;
+                  });
+
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text(" Cập nhật tên hiển thị thành công"),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+
+                  //  Gọi lại getMe() để refresh dữ liệu user thật từ server
+                  await _loadUser();
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text(" Không thể cập nhật tên hiển thị"),
+                      backgroundColor: Colors.redAccent,
+                    ),
+                  );
+                }
+              } catch (e) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text("Lỗi khi cập nhật: $e"),
+                    backgroundColor: Colors.redAccent,
+                  ),
+                );
+              }
+            },
+            child: const Text('Lưu', style: TextStyle(color: Colors.redAccent)),
+          ),
+        ],
+      ),
+    );
   }
 
 }
