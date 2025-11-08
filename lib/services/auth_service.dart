@@ -7,11 +7,12 @@ import '../config/api.dart';
 class AuthService {
   static final GoogleSignIn _googleSignIn = GoogleSignIn();
 
-  // 🔹 Kiểm tra kết nối mạng
+  //  Kiểm tra kết nối mạng
   static Future<bool> _checkConnection() async {
     final result = await Connectivity().checkConnectivity();
     return result != ConnectivityResult.none;
   }
+
   //  Đăng ký tài khoản
   static Future<Map<String, dynamic>> register(String email, String password) async {
     if (!await _checkConnection()) return {'error': 'Không có kết nối mạng'};
@@ -21,18 +22,17 @@ class AuthService {
         'email': email.trim(),
         'password': password.trim(),
       });
+
       dynamic data = res.data;
       if (data is String) data = jsonDecode(data);
       if (data is Map) return Map<String, dynamic>.from(data);
       return {'error': 'Phản hồi không hợp lệ'};
     } on DioException catch (e) {
       return {'error': Api.handleError(e)};
-    } catch (e) {
-      return {'error': 'Lỗi không xác định: $e'};
     }
   }
 
-  // Đăng nhập bằng email & mật khẩu
+  //  Đăng nhập
   static Future<Map<String, dynamic>> login(String email, String password) async {
     if (!await _checkConnection()) return {'error': 'Không có kết nối mạng'};
     try {
@@ -40,60 +40,61 @@ class AuthService {
         'email': email.trim(),
         'password': password.trim(),
       });
+
       dynamic data = res.data;
       if (data is String) data = jsonDecode(data);
       if (data is! Map) return {'error': 'Phản hồi không hợp lệ từ máy chủ'};
-      final mapData = Map<String, dynamic>.from(data);
-      final token = mapData['token']?.toString() ?? '';
-      if (token.isNotEmpty) await Api.setToken(token);
-      return mapData;
+
+      final token = data['token']?.toString();
+      if (token != null && token.isNotEmpty) {
+        await Api.setToken(token);
+      }
+      return Map<String, dynamic>.from(data);
     } on DioException catch (e) {
       return {'error': Api.handleError(e)};
-    } catch (e) {
-      return {'error': 'Lỗi không xác định: $e'};
     }
   }
 
   //  Đăng nhập bằng Google
   static Future<Map<String, dynamic>> signInWithGoogle() async {
     if (!await _checkConnection()) return {'error': 'Không có kết nối mạng'};
+
     try {
       final googleUser = await _googleSignIn.signIn();
-
       if (googleUser == null) {
         return {'error': 'Người dùng đã hủy đăng nhập Google'};
       }
-      //  Gửi thông tin người dùng đến backend
+
       final res = await Api.post('auth/google', {
         'email': googleUser.email,
         'name': googleUser.displayName ?? '',
         'avatar': googleUser.photoUrl ?? '',
       });
+
       dynamic data = res.data;
       if (data is String) data = jsonDecode(data);
       if (data is! Map) return {'error': 'Phản hồi không hợp lệ từ máy chủ'};
-      final mapData = Map<String, dynamic>.from(data);
-      //  Lưu token
-      final token = mapData['token']?.toString() ?? '';
-      if (token.isNotEmpty) await Api.setToken(token);
+
+      final token = data['token']?.toString();
+      if (token != null && token.isNotEmpty) {
+        await Api.setToken(token);
+      }
+
       final me = await getMe();
       if (me != null && me['user'] != null) {
-        mapData['user'] = me['user'];
+        data['user'] = me['user'];
       }
-      return mapData;
+      return Map<String, dynamic>.from(data);
     } on DioException catch (e) {
       return {'error': Api.handleError(e)};
-    } catch (e) {
-      return {'error': 'Lỗi Google Sign-In: $e'};
     }
   }
 
-  // Lấy thông tin người dùng qua token
+  // 🔹 Lấy thông tin người dùng qua token
   static Future<Map<String, dynamic>?> getMe() async {
     try {
       final res = await Api.get('auth/me');
       dynamic data = res.data;
-
       if (data is String) data = jsonDecode(data);
       if (data is Map) return Map<String, dynamic>.from(data);
       return null;
@@ -102,15 +103,28 @@ class AuthService {
     }
   }
 
-  // Đăng xuất
+  // 🔹 Tự động khôi phục token khi khởi động app
+  static Future<bool> tryAutoLogin() async {
+    await Api.loadToken();
+    final me = await getMe();
+    return me != null && me['user'] != null;
+  }
+
+  // 🔹 Đăng xuất
   static Future<void> logout() async {
     try {
       await Api.clearToken();
-      await _googleSignIn.signOut();
-      await _googleSignIn.disconnect();
-
+      try {
+        final isSignedIn = await _googleSignIn.isSignedIn();
+        if (isSignedIn) {
+          await _googleSignIn.signOut();
+        }
+      } catch (e) {
+        print(' Google signOut error: $e');
+      }
     } catch (e) {
       print(' Lỗi khi đăng xuất: $e');
     }
   }
+
 }

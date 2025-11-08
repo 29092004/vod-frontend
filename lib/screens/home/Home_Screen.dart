@@ -55,7 +55,7 @@ class _HomeScreenState extends State<HomeScreen> {
         _isLoading = false;
       });
     } catch (e) {
-      debugPrint("❌ Lỗi tải phim: $e");
+      debugPrint(" Lỗi tải phim: $e");
       setState(() => _isLoading = false);
     }
   }
@@ -95,7 +95,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final screens = [
       _buildHome(context),
       const SearchScreen(),
-      const Center(child: Text('❤️ Yêu thích', style: TextStyle(fontSize: 22))),
+      const Center(child: Text(' Yêu thích', style: TextStyle(fontSize: 22))),
       const AccountScreen(),
     ];
 
