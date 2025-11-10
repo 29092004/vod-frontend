@@ -43,6 +43,8 @@ dependencies:
   google_sign_in: ^6.2.1
   connectivity_plus: ^7.0.0
   diacritic: ^0.1.6
+  youtube_player_flutter: ^9.0.2
+  url_launcher: ^6.3.0
 
 
 dev_dependencies:

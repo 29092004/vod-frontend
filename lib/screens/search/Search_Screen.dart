@@ -78,8 +78,9 @@ class _SearchScreenState extends State<SearchScreen> {
     if (selectedGenres.isNotEmpty &&
         !selectedGenres.contains("Toàn bộ các loại")) {
       filtered = filtered
-          .where((f) => selectedGenres.any(
-              (g) => f.genres.toLowerCase().contains(g.toLowerCase())))
+          .where((f) =>
+          selectedGenres.any(
+                  (g) => f.genres.toLowerCase().contains(g.toLowerCase())))
           .toList();
     }
 
@@ -253,7 +254,7 @@ class _SearchScreenState extends State<SearchScreen> {
     );
   }
 
-  // 🔸 Popup hiển thị tất cả thể loại
+
   // 🔸 Popup hiển thị tất cả thể loại (hiển thị xanh ngay khi chọn)
   void _showGenrePopup(List<String> genres) {
     showDialog(
@@ -324,14 +325,15 @@ class _SearchScreenState extends State<SearchScreen> {
 
 
   // ✅ Các danh sách
-  List<String> _getCountries() => [
-    "Toàn bộ khu vực",
-    ..._films
-        .map((f) => f.countryName)
-        .where((e) => e.isNotEmpty)
-        .toSet()
-        .toList(),
-  ];
+  List<String> _getCountries() =>
+      [
+        "Toàn bộ khu vực",
+        ..._films
+            .map((f) => f.countryName)
+            .where((e) => e.isNotEmpty)
+            .toSet()
+            .toList(),
+      ];
 
   List<String> _getGenres() {
     final allGenres = _genres.map((g) => g.genreName).toList();
@@ -372,7 +374,8 @@ class _SearchScreenState extends State<SearchScreen> {
             }
             // 🔹 Nếu chọn lựa chọn khác -> bỏ chọn "Toàn bộ ..."
             else {
-              selectedFilters[title]!.removeWhere((o) => o.startsWith("Toàn bộ"));
+              selectedFilters[title]!.removeWhere((o) =>
+                  o.startsWith("Toàn bộ"));
               selectedFilters[title]!.add(option);
             }
           }
@@ -412,7 +415,9 @@ class _SearchScreenState extends State<SearchScreen> {
           Wrap(
             spacing: 8,
             runSpacing: 8,
-            children: options.map((option) => _buildOption(title, option)).toList(),
+            children: options
+                .map((option) => _buildOption(title, option))
+                .toList(),
           ),
         ],
       ),
@@ -423,12 +428,16 @@ class _SearchScreenState extends State<SearchScreen> {
   Widget _buildMovieGrid(List<FilmInfo> films) {
     if (films.isEmpty) {
       return const Center(
-          child: Padding(
-            padding: EdgeInsets.all(20),
-            child: Text("Không có phim phù hợp",
-                style: TextStyle(color: Colors.grey, fontSize: 14)),
-          ));
+        child: Padding(
+          padding: EdgeInsets.all(20),
+          child: Text(
+            "Không có phim phù hợp",
+            style: TextStyle(color: Colors.grey, fontSize: 14),
+          ),
+        ),
+      );
     }
+
     return GridView.builder(
       physics: const NeverScrollableScrollPhysics(),
       shrinkWrap: true,
@@ -446,14 +455,10 @@ class _SearchScreenState extends State<SearchScreen> {
             Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (context) => DetailFilmScreen(
-                  title: film.filmName,
-                  description: film.description,
-                  director: film.originalName,
-                  posterUrl: film.posterMain,
-                  url360: "",
-                  url720: "",
-                ),
+                builder: (context) =>
+                    DetailFilmScreen(
+                      filmId: film.filmId, // ✅ Truyền ID qua
+                    ),
               ),
             );
           },
@@ -472,14 +477,16 @@ class _SearchScreenState extends State<SearchScreen> {
                 ),
               ),
               const SizedBox(height: 6),
-              Text(film.countryName,
-                  style:
-                  const TextStyle(color: Colors.grey, fontSize: 12)),
-              Text(film.filmName,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style:
-                  const TextStyle(color: Colors.white, fontSize: 13)),
+              Text(
+                film.countryName,
+                style: const TextStyle(color: Colors.grey, fontSize: 12),
+              ),
+              Text(
+                film.filmName,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(color: Colors.white, fontSize: 13),
+              ),
             ],
           ),
         );
