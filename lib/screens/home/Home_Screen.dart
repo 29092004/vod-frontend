@@ -56,7 +56,7 @@ class _HomeScreenState extends State<HomeScreen> {
         _isLoading = false;
       });
     } catch (e) {
-      debugPrint("❌ Lỗi tải phim: $e");
+      debugPrint(" Lỗi tải phim: $e");
       setState(() => _isLoading = false);
     }
   }
