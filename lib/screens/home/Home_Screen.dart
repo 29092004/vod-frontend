@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:movie_app/services/Film_Service.dart';
 import '../../models/Film_info.dart';
 import '../detail/Detail_Films.dart';
+import '../favorite/Favorite_Screen.dart';
 import '../profile/Profile_Screen.dart';
 import '../search/Search_Screen.dart';
 
@@ -95,7 +96,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final screens = [
       _buildHome(context),
       const SearchScreen(),
-      const Center(child: Text(' Yêu thích', style: TextStyle(fontSize: 22))),
+      const FavoriteScreen(),
       const AccountScreen(),
     ];
 
@@ -270,14 +271,7 @@ class _HomeScreenState extends State<HomeScreen> {
             Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (_) => DetailFilmScreen(
-                  title: film.originalName,
-                  description: film.description,
-                  director: "Đạo diễn đang cập nhật...",
-                  posterUrl: poster,
-                  url360: film.trailerUrl,
-                  url720: film.trailerUrl,
-                ),
+                builder: (_) => DetailFilmScreen(filmId: film.filmId),
               ),
             );
           },
@@ -325,14 +319,7 @@ class _HomeScreenState extends State<HomeScreen> {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (_) => DetailFilmScreen(
-                    title: film.originalName,
-                    description: film.description,
-                    director: "Đạo diễn đang cập nhật...",
-                    posterUrl: bannerUrl,
-                    url360: film.trailerUrl,
-                    url720: film.trailerUrl,
-                  ),
+                  builder: (_) => DetailFilmScreen(filmId: film.filmId),
                 ),
               );
             },
@@ -409,14 +396,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (_) => DetailFilmScreen(
-                        title: film.originalName,
-                        description: film.description,
-                        director: "Đạo diễn đang cập nhật...",
-                        posterUrl: mainPoster,
-                        url360: film.trailerUrl,
-                        url720: film.trailerUrl,
-                      ),
+                      builder: (_) => DetailFilmScreen(filmId: film.filmId),
                     ),
                   );
                 },
