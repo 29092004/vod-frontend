@@ -65,9 +65,7 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
   @override
   void initState() {
     super.initState();
-    _loadFilm();
 
-    // 🎧 Khởi tạo volume hệ thống
     _volumeController.showSystemUI = true;
     _volumeController.getVolume().then((vol) {
       setState(() => _systemVolume = vol);
@@ -75,7 +73,6 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
     _volumeController.listener((volume) {
       setState(() => _systemVolume = volume);
     });
-
     _initData();
 
   }
@@ -716,24 +713,18 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
             size: 26,
           ),
           const SizedBox(height: 4),
-          Text(
+          const Text(
             "Đánh giá",
-
             style: TextStyle(
-                color: Colors.amberAccent,
-                fontWeight: FontWeight.bold,
-                fontSize: 14)),
-        const SizedBox(width: 6),
-        Row(
-          children: List.generate(
-            5,
-                (index) =>
-            const Icon(Icons.star, color: Colors.amberAccent, size: 16),
+              color: Colors.amberAccent,
+              fontWeight: FontWeight.bold,
+              fontSize: 14,
+            ),
           ),
-        ),
-      ],
-    ),
+        ],
+      ),
     );
+
   }
 
 
@@ -1175,7 +1166,7 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
             ),
 
             /// ------------------------------------
-            /// 🔥 Ô nhập phản hồi
+            ///  Ô nhập phản hồi
             /// ------------------------------------
             if (c['showReplyBox'] == true)
               Padding(
@@ -1273,6 +1264,7 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
       await Api.loadToken();
       final me = await AuthService.getMe();
       final user = me?['user'];
+
       if (user == null) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text("Vui lòng đăng nhập để bình luận")),
@@ -1281,36 +1273,33 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
       }
 
       final profileId = user['Profile_id'] ?? user['id'];
-      final userName = user['name'] ?? 'Người dùng';
-      final userAvatar = user['avatar'];
 
+      // ❗ LẤY DỮ LIỆU ĐÚNG KEY NHƯ BACKEND TRẢ
+      final userName = user['Profile_name'] ?? user['name'] ?? 'Người dùng';
+      final userAvatar = user['Avatar_url'] ?? user['avatar'];
+
+      // GỬI COMMENT
       final ok = await CommentService.addComment(
         filmId: widget.filmId,
         profileId: profileId,
         content: text,
       );
 
-      if (ok) {
-        _commentController.clear();
-        setState(() {
-          _comments.insert(0, {
-            'Comment_id': DateTime.now().millisecondsSinceEpoch,
-            'Profile_name': userName,
-            'Avatar_url': userAvatar,
-            'Content': text,
-            'Likes': 0,
-            'liked': false,
-            'Created_at': DateTime.now().toIso8601String(),
-            'Replies': [],
-          });
-        });
-      } else {
+      if (!ok) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text("Không thể gửi bình luận")),
         );
+        return;
       }
+
+      _commentController.clear();
+
+      // ❗ KHÔNG INSERT LOCAL → LUÔN TẢI LẠI ĐỂ ĐỒNG BỘ ID, TÊN, AVT
+      await _loadComments();
+
+      setState(() {});
     } catch (e) {
-      debugPrint(" Lỗi gửi bình luận: $e");
+      debugPrint("❌ Lỗi gửi bình luận: $e");
     }
   }
 
@@ -1321,6 +1310,7 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
       await Api.loadToken();
       final me = await AuthService.getMe();
       final user = me?['user'];
+
       if (user == null) {
         ScaffoldMessenger.of(context)
             .showSnackBar(const SnackBar(content: Text("Vui lòng đăng nhập")));
@@ -1328,8 +1318,9 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
       }
 
       final profileId = user['Profile_id'] ?? user['id'];
-      final userName = user['name'] ?? 'Người dùng';
-      final userAvatar = user['avatar'];
+      final userName = user['Profile_name'] ?? user['name'] ?? 'Người dùng';
+      final userAvatar = user['Avatar_url'] ?? user['avatar'];
+
 
       final ok = await CommentService.addReply(
         filmId: widget.filmId,
@@ -1338,37 +1329,21 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
         content: text,
       );
 
-      if (!ok) return;
-      bool insertRecursive(List list) {
-        for (var comment in list) {
-          if (comment['Comment_id'] == parentId) {
-            comment['Replies'] ??= [];
-            comment['Replies'].insert(0, {
-              'Comment_id': DateTime.now().millisecondsSinceEpoch,
-              'Profile_name': userName,
-              'Avatar_url': userAvatar,
-              'Content': text,
-              'Created_at': DateTime.now().toIso8601String(),
-              'Replies': [],
-            });
-            return true;
-          }
-
-          if (comment['Replies'] != null &&
-              insertRecursive(comment['Replies'])) {
-            return true;
-          }
-        }
-        return false;
+      if (!ok) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text("Không thể gửi phản hồi")));
+        return;
       }
 
-      setState(() {
-        insertRecursive(_comments);
-      });
+
+      await _loadComments();
+
+      setState(() {}); // refresh UI
     } catch (e) {
-      debugPrint(" Lỗi gửi reply: $e");
+      debugPrint("❌ Lỗi gửi reply: $e");
     }
   }
+
 
   Future<void> _toggleLike(int commentId) async {
     try {
