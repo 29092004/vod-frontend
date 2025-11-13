@@ -9,7 +9,7 @@ import 'config/api.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // ✅ Cho phép xoay ngang
+
   await SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
     DeviceOrientation.landscapeLeft,
@@ -18,7 +18,7 @@ void main() async {
 
   await dotenv.load(fileName: ".env");
   await Api.init();
-
+  await Api.clearToken();
   final isLoggedIn = await AuthService.tryAutoLogin();
 
   runApp(MyApp(isLoggedIn: isLoggedIn));
