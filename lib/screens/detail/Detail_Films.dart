@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:better_player_plus/better_player_plus.dart';
 import 'package:video_player/video_player.dart';
 import 'package:youtube_player_flutter/youtube_player_flutter.dart';
-
 import 'package:volume_controller/volume_controller.dart';
 import '../../models/Film_info.dart';
 import '../../services/Film_Service.dart';
@@ -502,10 +501,6 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
                         ),
                         const SizedBox(height: 10),
 
-                        _buildViewAndStar(),
-                        const SizedBox(height: 12),
-
-
                         //  Lượt xem + Đánh giá
                         Row(
                           children: [
@@ -737,16 +732,19 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
           ),
         ),
       ],
+    ),
     );
   }
 
 
   Widget _buildTabs() {
     final tabs = ["Tập phim", "Diễn viên", "Bình luận"];
+
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
       children: List.generate(tabs.length, (i) {
         final isSelected = _selectedTab == i;
+
         return GestureDetector(
           onTap: () => setState(() => _selectedTab = i),
           child: Container(
@@ -758,6 +756,24 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
                   color: isSelected ? Colors.amberAccent : Colors.transparent,
                   width: 2,
                 ),
+              ),
+            ),
+            child: Center(
+              child: Text(
+                tabs[i],
+                style: TextStyle(
+                  color: isSelected ? Colors.amberAccent : Colors.white70,
+                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                  fontSize: 14,
+                ),
+              ),
+            ),
+          ),
+        );
+      }),
+    );
+  }
+
 
   void _showRatingDialog() {
     showDialog(
@@ -778,6 +794,7 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
                 children: List.generate(5, (index) {
                   final starIndex = index + 1;
                   final isSelected = tempRating >= starIndex;
+
                   return IconButton(
                     icon: Icon(
                       Icons.star,
@@ -794,27 +811,13 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
                           _selectedRating = starIndex;
                         }
                       });
+
                       setState(() => _selectedRating = tempRating);
                     },
                   );
                 }),
-
               ),
-            ),
-            child: Center(
-              child: Text(
-                tabs[i],
-                style: TextStyle(
-                  color: isSelected ? Colors.amberAccent : Colors.white70,
-                  fontWeight:
-                  isSelected ? FontWeight.bold : FontWeight.normal,
-                  fontSize: 14,
-                ),
-
-              ),
-            ),
-          ),
-
+              actions: [
                 TextButton(
                   onPressed: () async {
                     await _submitRating(tempRating);
@@ -825,15 +828,20 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
                     style: TextStyle(color: Colors.greenAccent),
                   ),
                 ),
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text(
+                    "Đóng",
+                    style: TextStyle(color: Colors.white70),
+                  ),
+                ),
               ],
             );
           },
-
         );
-      }),
+      },
     );
   }
-
 
   // Danh sách tập phim
 
@@ -1005,7 +1013,6 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
     );
   }
 
-  // Bình luận
   Widget _buildCommentSection() {
     if (_loadingComments) {
       return const Center(
@@ -1013,18 +1020,59 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
       );
     }
 
-    // Hàm dựng từng comment
+    /// -----------------------------------------------
+    /// 🔥 Ô NHẬP BÌNH LUẬN  —  BẠN ĐANG BỊ THIẾU
+    /// -----------------------------------------------
+    Widget buildCommentInput() {
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 10),
+        child: Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: _commentController,
+                style: const TextStyle(color: Colors.white),
+                decoration: InputDecoration(
+                  hintText: "Nhập bình luận...",
+                  hintStyle: const TextStyle(color: Colors.white54),
+                  filled: true,
+                  fillColor: Colors.grey[850],
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: BorderSide.none,
+                  ),
+                  contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                ),
+              ),
+            ),
+            const SizedBox(width: 6),
+            IconButton(
+              icon: const Icon(Icons.send, color: Colors.greenAccent),
+              onPressed: _sendComment,
+            ),
+          ],
+        ),
+      );
+    }
+
+    /// -----------------------------------------------
+    /// 🔥 Hàm dựng 1 COMMENT + REPLY
+    /// -----------------------------------------------
     Widget buildCommentItem(Map<String, dynamic> c, int depth, int parentId) {
       c['showReplyBox'] ??= false;
+      c['showReplies'] ??= false;
+
       final replyCtrl = TextEditingController();
       final replies = c['Replies'] ?? [];
       final double indent = 40.0 * depth;
+
       return Padding(
         padding: EdgeInsets.only(left: indent),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            //AVATAR + NAME + BÌNH LUẬN
+            /// Avatar + tên + nội dung
             ListTile(
               leading: CircleAvatar(
                 radius: depth == 0 ? 20 : 16,
@@ -1042,7 +1090,8 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
                 style: TextStyle(
                   color: Colors.white,
                   fontSize: depth == 0 ? 14 : 13,
-                  fontWeight: depth == 0 ? FontWeight.bold : FontWeight.w500,
+                  fontWeight:
+                  depth == 0 ? FontWeight.bold : FontWeight.w500,
                 ),
               ),
               subtitle: Column(
@@ -1057,28 +1106,28 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
                   ),
 
                   if (c['Created_at'] != null)
-                    Builder(
-                      builder: (_) {
-                        try {
-                          final dt = DateTime.parse(c['Created_at']).toLocal();
-                          return Text(
-                            timeago.format(dt, locale: 'vi'),
-                            style: const TextStyle(color: Colors.grey, fontSize: 10),
-                          );
-                        } catch (_) {
-                          return const SizedBox.shrink();
-                        }
-                      },
-                    ),
+                    Builder(builder: (_) {
+                      try {
+                        final dt = DateTime.parse(c['Created_at']).toLocal();
+                        return Text(
+                          timeago.format(dt, locale: 'vi'),
+                          style: const TextStyle(
+                              color: Colors.grey, fontSize: 10),
+                        );
+                      } catch (_) {
+                        return const SizedBox.shrink();
+                      }
+                    }),
 
                   const SizedBox(height: 4),
 
-                  //  LIKE + REPLY BUTTONS
+                  /// LIKE + PHẢN HỒI
                   Row(
                     children: [
                       GestureDetector(
-                        onTap: () =>
-                        depth == 0 ? _toggleLike(c['Comment_id']) : _toggleLikeReply(c),
+                        onTap: () => depth == 0
+                            ? _toggleLike(c['Comment_id'])
+                            : _toggleLikeReply(c),
                         child: Row(
                           children: [
                             Icon(
@@ -1125,7 +1174,9 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
               ),
             ),
 
-            //REPLY TEXTFIELD
+            /// ------------------------------------
+            /// 🔥 Ô nhập phản hồi
+            /// ------------------------------------
             if (c['showReplyBox'] == true)
               Padding(
                 padding: EdgeInsets.only(left: 45, bottom: 8, right: 8),
@@ -1144,8 +1195,8 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
                             borderRadius: BorderRadius.circular(8),
                             borderSide: BorderSide.none,
                           ),
-                          contentPadding:
-                          const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                          contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 8),
                         ),
                       ),
                     ),
@@ -1166,15 +1217,16 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
                 ),
               ),
 
-
-            //  NÚT HIỂN THỊ / ẨN REPLY
+            /// Nút ẩn/hiện reply
             if (replies.isNotEmpty)
               GestureDetector(
                 onTap: () {
-                  setState(() => c['showReplies'] = !(c['showReplies'] ?? false));
+                  setState(() =>
+                  c['showReplies'] = !(c['showReplies'] ?? false));
                 },
                 child: Padding(
-                  padding: EdgeInsets.only(left: depth == 0 ? 50 : 40, bottom: 6),
+                  padding: EdgeInsets.only(
+                      left: depth == 0 ? 50 : 40, bottom: 6),
                   child: Text(
                     c['showReplies'] == true
                         ? "Ẩn phản hồi"
@@ -1188,29 +1240,30 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
                 ),
               ),
 
+            /// Danh sách reply
             if (c['showReplies'] == true)
               Column(
                 children: replies
                     .map<Widget>(
-                      (r) => buildCommentItem(r, depth + 1, c['Comment_id']),
-                )
+                        (r) => buildCommentItem(r, depth + 1, c['Comment_id']))
                     .toList(),
               ),
-
           ],
         ),
       );
     }
 
-    // BUILD UI
+    /// -----------------------------------------------
+    /// BUILD UI HOÀN CHỈNH
+    /// -----------------------------------------------
     return Column(
-      children: _comments
-          .map((c) => buildCommentItem(c, 0, c['Comment_id']))
-          .toList(),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        buildCommentInput(), // ✅ Thêm phần nhập bình luận
+        ..._comments.map((c) => buildCommentItem(c, 0, c['Comment_id'])),
+      ],
     );
   }
-
-
 
   Future<void> _sendComment() async {
     final text = _commentController.text.trim();
@@ -1316,7 +1369,6 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
       debugPrint(" Lỗi gửi reply: $e");
     }
   }
-
 
   Future<void> _toggleLike(int commentId) async {
     try {
@@ -1455,82 +1507,8 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
       ),
     );
   }
-  // --- Nút đánh giá (⭐) ---
-  Widget _buildRatingButton() {
-    return GestureDetector(
-      onTap: _showRatingDialog,
-      child: Column(
-        children: [
-          Icon(
-            Icons.star,
-            color: _selectedRating > 0 ? Colors.amberAccent : Colors.white,
-            size: 26,
-          ),
-          const SizedBox(height: 4),
-          Text(
-            "Đánh giá",
-            style: TextStyle(
-              color: _selectedRating > 0 ? Colors.amberAccent : Colors.white,
-              fontSize: 12,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 
-// --- Popup chọn sao ---
-  void _showRatingDialog() {
-    showDialog(
-      context: context,
-      builder: (context) {
-        int tempRating = _selectedRating;
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            return AlertDialog(
-              backgroundColor: Colors.black87,
-              title: const Text(
-                "Đánh giá phim",
-                style: TextStyle(color: Colors.amberAccent, fontSize: 18),
-              ),
-              content: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: List.generate(5, (index) {
-                  final starIndex = index + 1;
-                  final isSelected = tempRating >= starIndex;
-                  return IconButton(
-                    icon: Icon(
-                      Icons.star,
-                      color: isSelected ? Colors.amberAccent : Colors.white24,
-                      size: 34,
-                    ),
-                    onPressed: () {
-                      setDialogState(() {
-                        if (tempRating == starIndex) {
-                          tempRating = 0;
-                        } else {
-                          tempRating = starIndex;
-                        }
-                      });
-                      setState(() => _selectedRating = tempRating);
-                    },
-                  );
-                }),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text(
-                    "Đóng",
-                    style: TextStyle(color: Colors.white70),
-                  ),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
-  }
+
+
 
 }

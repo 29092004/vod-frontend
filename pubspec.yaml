@@ -46,7 +46,7 @@ dependencies:
   youtube_player_flutter: ^9.0.2
   url_launcher: ^6.3.0
   volume_controller: ^2.0.7
-
+  timeago: ^3.7.1
 
 dev_dependencies:
   flutter_test:
