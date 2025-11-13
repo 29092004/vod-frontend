@@ -163,7 +163,7 @@ class _AccountScreenState extends State<AccountScreen> {
     );
   }
 
-  /// 🟢 Hàm chọn loại ImageProvider an toàn
+  // Hàm xử lý ImageProvider
   ImageProvider? _buildAvatarImage() {
     if (_user == null || _user!['avatar'] == null) return null;
 
@@ -171,21 +171,25 @@ class _AccountScreenState extends State<AccountScreen> {
     if (avatar.isEmpty) return null;
 
     if (avatar.startsWith('http')) {
-      // URL mạng
+      //  Ảnh có sẵn URL đầy đủ
       return NetworkImage(avatar);
     } else if (avatar.startsWith('/storage') || avatar.startsWith('/data')) {
-      // File cục bộ
+      //  Ảnh cục bộ (Android)
       return FileImage(File(avatar));
     } else if (avatar.startsWith('file://')) {
-      // File cục bộ có prefix
+      //  Ảnh cục bộ có prefix
       return FileImage(File(Uri.parse(avatar).path));
     } else if (!avatar.contains('://')) {
-
-      return NetworkImage('${Api.baseHost}$avatar');
+      //  Ảnh trên server
+      final normalizedPath = avatar.startsWith('/')
+          ? avatar
+          : '/$avatar';
+      return NetworkImage('${Api.baseHost}$normalizedPath');
     }
 
     return null;
   }
+
   Widget _buildMenuItem(IconData icon, String title, VoidCallback onTap) {
     return ListTile(
       leading: Icon(icon, color: Colors.white),
@@ -269,7 +273,7 @@ class _AccountScreenState extends State<AccountScreen> {
                 });
 
                 if (res.data['success'] == true) {
-                  // Cập nhật UI ngay
+                  // Cập nhật UI
                   setState(() {
                     _user!['name'] = newName;
                   });
@@ -281,7 +285,7 @@ class _AccountScreenState extends State<AccountScreen> {
                     ),
                   );
 
-                  //  Gọi lại getMe() để refresh dữ liệu user thật từ server
+                  //  refresh dữ liệu user từ server
                   await _loadUser();
                 } else {
                   ScaffoldMessenger.of(context).showSnackBar(
