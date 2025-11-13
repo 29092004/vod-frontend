@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:movie_app/screens/auth/login.dart';
 import 'package:movie_app/screens/home/Home_Screen.dart';
@@ -7,6 +8,14 @@ import 'config/api.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // ✅ Cho phép xoay ngang
+  await SystemChrome.setPreferredOrientations([
+    DeviceOrientation.portraitUp,
+    DeviceOrientation.landscapeLeft,
+    DeviceOrientation.landscapeRight,
+  ]);
+
   await dotenv.load(fileName: ".env");
   await Api.init();
 
