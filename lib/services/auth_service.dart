@@ -83,6 +83,7 @@ class AuthService {
       final me = await getMe();
       if (me != null && me['user'] != null) {
         data['user'] = me['user'];
+
       }
       return Map<String, dynamic>.from(data);
     } on DioException catch (e) {
@@ -90,7 +91,7 @@ class AuthService {
     }
   }
 
-  // 🔹 Lấy thông tin người dùng qua token
+  // Lấy thông tin người dùng qua token
   static Future<Map<String, dynamic>?> getMe() async {
     try {
       final res = await Api.get('auth/me');
@@ -114,10 +115,12 @@ class AuthService {
   static Future<void> logout() async {
     try {
       await Api.clearToken();
+
       try {
         final isSignedIn = await _googleSignIn.isSignedIn();
         if (isSignedIn) {
           await _googleSignIn.signOut();
+
         }
       } catch (e) {
         print(' Google signOut error: $e');
@@ -126,5 +129,6 @@ class AuthService {
       print(' Lỗi khi đăng xuất: $e');
     }
   }
+
 
 }
