@@ -1,53 +1,65 @@
 class History {
   final int historyId;
-  final int profileId;
   final int filmId;
-  final int episodeId;
-  final int positionSeconds;
-  final int durationSeconds;
-  final String lastWatched;
+  final String filmName;
+  final int? episodeId;
+  final int? episodeNumber;
+  int positionSeconds; // ✅ có thể thay đổi được
+  int durationSeconds; // ✅ có thể thay đổi được
+  String posterUrl;
+  DateTime lastWatched;
 
   History({
     required this.historyId,
-    required this.profileId,
     required this.filmId,
-    required this.episodeId,
+    required this.filmName,
+    this.episodeId,
+    this.episodeNumber,
     required this.positionSeconds,
     required this.durationSeconds,
+    required this.posterUrl,
     required this.lastWatched,
   });
 
+  /// ✅ Tiện ích tính phần trăm tiến độ xem
+  double get progressPercent =>
+      durationSeconds == 0 ? 0 : positionSeconds / durationSeconds;
+
+  /// ✅ Cập nhật tiến độ mới (dễ gọi từ màn hình Xem tiếp)
+  void updateProgress(int newPosition, int newDuration) {
+    positionSeconds = newPosition;
+    durationSeconds = newDuration;
+    lastWatched = DateTime.now();
+  }
+
+  /// ✅ Parse từ JSON
   factory History.fromJson(Map<String, dynamic> json) {
     return History(
-      historyId: json['History_id'] is int
-          ? json['History_id']
-          : int.tryParse(json['History_id'].toString()) ?? 0,
-      profileId: json['Profile_id'] is int
-          ? json['Profile_id']
-          : int.tryParse(json['Profile_id'].toString()) ?? 0,
-      filmId: json['Film_id'] is int
-          ? json['Film_id']
-          : int.tryParse(json['Film_id'].toString()) ?? 0,
-      episodeId: json['Episode_id'] is int
-          ? json['Episode_id']
-          : int.tryParse(json['Episode_id'].toString()) ?? 0,
-      positionSeconds: json['position_seconds'] is int
-          ? json['position_seconds']
-          : int.tryParse(json['position_seconds'].toString()) ?? 0,
-      durationSeconds: json['duration_seconds'] is int
-          ? json['duration_seconds']
-          : int.tryParse(json['duration_seconds'].toString()) ?? 0,
-      lastWatched: json['last_watched'] ?? '',
+      historyId: json['History_id'],
+      filmId: json['Film_id'],
+      filmName: json['Film_name'] ?? '',
+      episodeId: json['Episode_id'],
+      episodeNumber: json['Episode_number'],
+      positionSeconds: json['position_seconds'] ?? 0,
+      durationSeconds: json['duration_seconds'] ?? 0,
+      posterUrl: json['poster_url'] ?? '',
+      lastWatched: DateTime.tryParse(json['last_watched'] ?? '') ??
+          DateTime.now(),
     );
   }
 
-  Map<String, dynamic> toJson() => {
-    'History_id': historyId,
-    'Profile_id': profileId,
-    'Film_id': filmId,
-    'Episode_id': episodeId,
-    'position_seconds': positionSeconds,
-    'duration_seconds': durationSeconds,
-    'last_watched': lastWatched,
-  };
+  /// ✅ Chuyển về JSON (nếu cần gửi lại server)
+  Map<String, dynamic> toJson() {
+    return {
+      'History_id': historyId,
+      'Film_id': filmId,
+      'Film_name': filmName,
+      'Episode_id': episodeId,
+      'Episode_number': episodeNumber,
+      'position_seconds': positionSeconds,
+      'duration_seconds': durationSeconds,
+      'poster_url': posterUrl,
+      'last_watched': lastWatched.toIso8601String(),
+    };
+  }
 }

@@ -113,7 +113,7 @@ class _HomeScreenState extends State<HomeScreen> {
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Trang chủ'),
           BottomNavigationBarItem(icon: Icon(Icons.grid_view), label: 'Tìm kiếm'),
-          BottomNavigationBarItem(icon: Icon(Icons.favorite), label: 'Yêu thích'),
+          BottomNavigationBarItem(icon: Icon(Icons.favorite), label: 'Phim của tôi'),
           BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Tài khoản'),
         ],
       ),

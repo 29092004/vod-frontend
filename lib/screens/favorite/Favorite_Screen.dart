@@ -1,12 +1,55 @@
 import 'package:flutter/material.dart';
+import '../../models/History.dart';
+import '../../services/History_Service.dart';
+import '../detail/Detail_Films.dart';
 
-class FavoriteScreen extends StatelessWidget {
+class FavoriteScreen extends StatefulWidget {
   const FavoriteScreen({super.key});
+
+  @override
+  State<FavoriteScreen> createState() => _FavoriteScreenState();
+}
+
+class _FavoriteScreenState extends State<FavoriteScreen> {
+  bool _showContinue = false;
+  bool _loading = false;
+  List<History> _continueList = [];
+
+  final int _profileId = 1; // ID hồ sơ người dùng
+
+  Future<void> _loadContinueWatching() async {
+    setState(() => _loading = true);
+    try {
+      final data = await HistoryService.getContinueWatching(_profileId);
+      setState(() {
+        _continueList = data;
+        _loading = false;
+      });
+    } catch (e) {
+      setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _removeFromContinue(int historyId) async {
+    try {
+      await HistoryService.deleteHistory(historyId);
+      setState(() {
+        _continueList.removeWhere((item) => item.historyId == historyId);
+      });
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('❌ Lỗi khi xóa: $e'),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0D0D0D), // Màu nền tối
+      backgroundColor: const Color(0xFF0D0D0D),
       appBar: AppBar(
         backgroundColor: Colors.black,
         elevation: 0,
@@ -24,51 +67,67 @@ class FavoriteScreen extends StatelessWidget {
         children: [
           const SizedBox(height: 10),
           _buildSectionItem(
-            context,
             icon: Icons.favorite_rounded,
             title: "Yêu thích",
-            color: Colors.white,
-            onTap: () {
-            },
+            onTap: () {},
           ),
-
           _divider(),
           _buildSectionItem(
-            context,
             icon: Icons.add_rounded,
             title: "Danh sách",
-            color: Colors.white,
-            onTap: () {
-            },
+            onTap: () {},
           ),
           _divider(),
-          _buildSectionItem(
-            context,
-            icon: Icons.history_rounded,
-            title: "Xem tiếp",
-            color: Colors.white,
-            onTap: () {
+
+          // 🔹 XEM TIẾP
+          ListTile(
+            onTap: () async {
+              setState(() => _showContinue = !_showContinue);
+              if (_showContinue && _continueList.isEmpty) {
+                await _loadContinueWatching();
+              }
             },
+            leading: const Icon(Icons.history_rounded,
+                color: Colors.white, size: 28),
+            title: const Text(
+              "Xem tiếp",
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            trailing: Icon(
+              _showContinue
+                  ? Icons.keyboard_arrow_down_rounded
+                  : Icons.arrow_forward_ios_rounded,
+              color: Colors.white38,
+              size: _showContinue ? 24 : 16,
+            ),
+            contentPadding:
+            const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
           ),
+
+          if (_showContinue) _buildContinueList(),
           const SizedBox(height: 10),
         ],
       ),
     );
   }
 
-  // --- Widget tạo từng mục ---
-  Widget _buildSectionItem(BuildContext context,
-      {required IconData icon,
-        required String title,
-        required Color color,
-        required VoidCallback onTap}) {
+  // --- Widget từng mục --- //
+  Widget _buildSectionItem({
+    required IconData icon,
+    required String title,
+    required VoidCallback onTap,
+  }) {
     return ListTile(
       onTap: onTap,
-      leading: Icon(icon, color: color, size: 28),
+      leading: Icon(icon, color: Colors.white, size: 28),
       title: Text(
         title,
-        style: TextStyle(
-          color: color,
+        style: const TextStyle(
+          color: Colors.white,
           fontSize: 16,
           fontWeight: FontWeight.w500,
         ),
@@ -80,14 +139,169 @@ class FavoriteScreen extends StatelessWidget {
     );
   }
 
-  // --- Phân cách giữa các mục ---
   Widget _divider() {
     return const Padding(
       padding: EdgeInsets.symmetric(horizontal: 20),
-      child: Divider(
-        color: Colors.white24,
-        thickness: 0.8,
-        height: 8,
+      child: Divider(color: Colors.white24, thickness: 0.8, height: 8),
+    );
+  }
+
+  // --- Giao diện danh sách phim XEM TIẾP --- //
+  Widget _buildContinueList() {
+    if (_loading) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.symmetric(vertical: 20),
+          child: CircularProgressIndicator(color: Colors.amberAccent),
+        ),
+      );
+    }
+
+    if (_continueList.isEmpty) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+        child: Text(
+          "Chưa có phim nào đang xem tiếp.",
+          style: TextStyle(color: Colors.white54, fontSize: 14),
+        ),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(left: 10, bottom: 10),
+      child: SizedBox(
+        // 🔹 Tăng chiều cao để không bị overflow
+        height: 330,
+        child: ListView.builder(
+          scrollDirection: Axis.horizontal,
+          itemCount: _continueList.length,
+          itemBuilder: (context, index) {
+            final item = _continueList[index];
+            final percent = item.progressPercent;
+
+            return GestureDetector(
+              onTap: () async {
+                // ⏯️ Mở DetailFilmScreen và đợi khi người dùng quay lại
+                final updatedPosition = await Navigator.push<int>(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => DetailFilmScreen(
+                      filmId: item.filmId,
+                      startPosition: Duration(seconds: item.positionSeconds),
+                    ),
+                  ),
+                );
+
+                // 🔁 Nếu có tiến độ mới trả về, cập nhật lại trên giao diện
+                if (updatedPosition != null) {
+                  setState(() {
+                    item.positionSeconds = updatedPosition;
+                  });
+                } else {
+                  // Nếu không có dữ liệu trả về (người dùng thoát nhanh), vẫn load lại danh sách
+                  await _loadContinueWatching();
+                }
+              },
+
+              child: Container(
+                width: 180,
+                margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // --- Poster phim ---
+                    Stack(
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(10),
+                          child: Image.network(
+                            item.posterUrl,
+                            width: 180,
+                            height: 230, // tăng 10px cho cân đối
+                            fit: BoxFit.cover,
+                          ),
+                        ),
+                        // --- Nút xoá ---
+                        Positioned(
+                          top: 6,
+                          right: 6,
+                          child: InkWell(
+                            onTap: () => _removeFromContinue(item.historyId),
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: Colors.black54,
+                                borderRadius: BorderRadius.circular(50),
+                              ),
+                              padding: const EdgeInsets.all(4),
+                              child: const Icon(Icons.close_rounded,
+                                  color: Colors.white, size: 18),
+                            ),
+                          ),
+                        ),
+                        // --- Thanh tiến độ ---
+                        Positioned(
+                          bottom: 0,
+                          left: 0,
+                          right: 0,
+                          child: LinearProgressIndicator(
+                            value: percent,
+                            backgroundColor: Colors.black26,
+                            color: Colors.redAccent,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+
+                    // --- Thông tin tập phim ---
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      child: Text(
+                        "Tập ${item.episodeNumber ?? 1} • ${(item
+                            .positionSeconds ~/ 60)}m / ${(item
+                            .durationSeconds ~/ 60)}m",
+                        style: const TextStyle(
+                            color: Colors.white70, fontSize: 12),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+
+                    // --- Tên phim ---
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      child: Text(
+                        item.filmName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+
+                    // --- Tên phụ (sub title) ---
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      child: Text(
+                        "Sword and Beloved", // hoặc item.subName nếu có
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Colors.white54,
+                          fontSize: 12,
+                          fontStyle: FontStyle.italic,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        ),
       ),
     );
   }

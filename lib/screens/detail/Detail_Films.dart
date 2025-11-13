@@ -1,13 +1,19 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:better_player_plus/better_player_plus.dart';
 import 'package:video_player/video_player.dart';
 import 'package:youtube_player_flutter/youtube_player_flutter.dart';
+import 'package:volume_controller/volume_controller.dart';
 import '../../models/Film_info.dart';
 import '../../services/Film_Service.dart';
+import '../../services/History_Service.dart'; // ✅ thêm
+import 'package:flutter/services.dart';
 
 class DetailFilmScreen extends StatefulWidget {
   final int filmId;
+  final Duration? startPosition;
 
-  const DetailFilmScreen({super.key, required this.filmId});
+  const DetailFilmScreen({super.key, required this.filmId, this.startPosition,});
 
   @override
   State<DetailFilmScreen> createState() => _DetailFilmScreenState();
@@ -17,12 +23,14 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
   bool isFavorite = false;
   bool _isLoading = true;
   bool _isVideoReady = false;
-  int _selectedRating = 0; // ⭐ lưu số sao người dùng chọn
+  int _selectedRating = 0;
 
   FilmInfo? _film;
   List<FilmInfo>? _recommendations;
+
   VideoPlayerController? _videoController;
   YoutubePlayerController? _youtubeController;
+  BetterPlayerController? _betterPlayerController;
 
   int _selectedEpisode = 1;
   int _selectedSeason = 0;
@@ -31,10 +39,30 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
   final List<Map<String, String>> _comments = [];
   final TextEditingController _commentController = TextEditingController();
 
+  // 🎧 Biến điều khiển âm lượng hệ thống
+  final VolumeController _volumeController = VolumeController();
+  double _systemVolume = 1.0;
+
+  // ✅ Biến theo dõi tiến độ xem phim
+  int _watchPosition = 0;
+  int _videoDuration = 0;
+  int _profileId = 1; // giả định người dùng hiện tại
+  bool _hasSaved = false;
+  Timer? _saveTimer; // để lưu định kỳ
+
   @override
   void initState() {
     super.initState();
     _loadFilm();
+
+    // 🎧 Khởi tạo volume hệ thống
+    _volumeController.showSystemUI = true;
+    _volumeController.getVolume().then((vol) {
+      setState(() => _systemVolume = vol);
+    });
+    _volumeController.listener((volume) {
+      setState(() => _systemVolume = volume);
+    });
   }
 
   Future<void> _loadFilm() async {
@@ -42,22 +70,9 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
       final data = await FilmService.getFilmDetail(widget.filmId);
       setState(() => _film = data);
 
-      final trailer = data.trailerUrl.trim();
-      if (trailer.contains("youtube.com") || trailer.contains("youtu.be")) {
-        final videoId = YoutubePlayer.convertUrlToId(trailer);
-        if (videoId != null) {
-          _youtubeController = YoutubePlayerController(
-            initialVideoId: videoId,
-            flags: const YoutubePlayerFlags(autoPlay: true),
-          );
-        }
-      } else if (trailer.isNotEmpty) {
-        _videoController = VideoPlayerController.networkUrl(Uri.parse(trailer))
-          ..initialize().then((_) {
-            setState(() => _isVideoReady = true);
-            _videoController?.play();
-          });
-      }
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _loadVideoAsync(data);
+      });
 
       final recs =
       await FilmService.getRecommendations(data.countryName, data.filmId);
@@ -71,13 +86,242 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
     }
   }
 
+  // ✅ Xử lý video (m3u8 / youtube / mp4)
+  Future<void> _loadVideoAsync(FilmInfo data) async {
+    try {
+      final sources = data.sources ?? "";
+      final trailer = data.trailerUrl.trim();
+      String? playUrl;
+
+      if (sources.isNotEmpty && sources.contains(".m3u8")) {
+        final urls = _extractEpisodeUrls(sources);
+        if (urls.isNotEmpty) {
+          final firstUrl = urls.first;
+          _initBetterPlayer(firstUrl);
+          setState(() {
+            _isVideoReady = true;
+            _selectedEpisode = 1;
+          });
+          return;
+        }
+      }
+
+      if (trailer.isNotEmpty) {
+        if (trailer.contains("youtube.com") || trailer.contains("youtu.be")) {
+          final id = _extractYouTubeId(trailer);
+          if (id != null && id.isNotEmpty) {
+            playUrl = "https://www.youtube.com/embed/$id";
+          }
+        } else if (trailer.endsWith(".mp4")) {
+          playUrl = trailer;
+        }
+
+        if (playUrl != null) {
+          await _initVideoPlayer(playUrl);
+          setState(() => _isVideoReady = true);
+          return;
+        }
+      }
+
+      setState(() => _isVideoReady = false);
+    } catch (e) {
+      debugPrint("⚠️ Lỗi tải video: $e");
+      setState(() => _isVideoReady = false);
+    }
+  }
+
+  // 🎬 Khởi tạo VideoPlayer
+  Future<void> _initVideoPlayer(String url) async {
+    try {
+      _videoController = VideoPlayerController.networkUrl(Uri.parse(url));
+      await _videoController!.initialize();
+      await _videoController!.play();
+      _videoController!.setLooping(true);
+      debugPrint("🎬 Đang phát video: $url");
+    } catch (e) {
+      debugPrint("❌ Lỗi khởi tạo video_player: $e");
+    }
+  }
+
+  String? _extractYouTubeId(String url) {
+    final RegExp regExp = RegExp(
+      r"(?:v=|\/)([0-9A-Za-z_-]{11}).*",
+      caseSensitive: false,
+      multiLine: false,
+    );
+    final match = regExp.firstMatch(url);
+    return match != null ? match.group(1) : null;
+  }
+
+  List<String> _extractEpisodeUrls(String sources) {
+    final parts = sources.split(',');
+    List<String> urls = [];
+    for (var p in parts) {
+      if (p.contains('http')) {
+        final idx = p.indexOf(':');
+        urls.add(p.substring(idx + 1).trim());
+      }
+    }
+    return urls;
+  }
+
+
+// ✅ Khởi tạo BetterPlayer phát tiếp ngay vị trí đang xem
+  void _initBetterPlayer(String url) {
+    // 🔹 Tạo bản đồ độ phân giải chỉ có 720p và 480p
+    final qualityUrls = {
+      "720p": url.replaceAll("480p", "720p").replaceAll("480p", "720p"),
+      "480p": url.replaceAll("720p", "480p").replaceAll("720p", "480p"),
+    };
+
+    // ✅ DataSource chính kèm hai độ phân giải
+    final dataSource = BetterPlayerDataSource(
+      BetterPlayerDataSourceType.network,
+      url,
+      videoFormat: BetterPlayerVideoFormat.hls,
+      resolutions: {
+        "720p": qualityUrls["720p"]!,
+        "480p": qualityUrls["480p"]!,
+      },
+    );
+
+    _betterPlayerController = BetterPlayerController(
+      BetterPlayerConfiguration(
+        autoPlay: true,
+        aspectRatio: 16 / 9,
+        fit: BoxFit.cover,
+        startAt: widget.startPosition,
+        fullScreenByDefault: false,
+        allowedScreenSleep: false,
+        autoDetectFullscreenDeviceOrientation: true,
+        autoDetectFullscreenAspectRatio: true,
+        deviceOrientationsOnFullScreen: const [
+          DeviceOrientation.landscapeLeft,
+          DeviceOrientation.landscapeRight,
+        ],
+        deviceOrientationsAfterFullScreen: const [
+          DeviceOrientation.portraitUp,
+        ],
+
+        // 🎮 Giữ nguyên controls
+        controlsConfiguration: const BetterPlayerControlsConfiguration(
+          enableFullscreen: true,
+          enableQualities: true,
+          enablePlaybackSpeed: true,
+          enableProgressBar: true,
+          enablePlayPause: true,
+          enableSkips: true,
+          enableMute: true,
+          enableAudioTracks: true,
+          enableOverflowMenu: true,
+          controlBarColor: Colors.transparent,
+          loadingColor: Colors.white,
+          enablePip: false,
+        ),
+      ),
+      betterPlayerDataSource: dataSource,
+    );
+
+    // 🟢 Khi video load xong thì seek tới vị trí cũ & phát luôn
+    _betterPlayerController!.addEventsListener((event) async {
+      if (event.betterPlayerEventType == BetterPlayerEventType.initialized) {
+        if (widget.startPosition != null && widget.startPosition!.inSeconds > 5) {
+          await _betterPlayerController!.seekTo(widget.startPosition!);
+          await _betterPlayerController!.play();
+          debugPrint("▶️ Tiếp tục phát từ ${widget.startPosition!.inSeconds}s");
+        } else {
+          await _betterPlayerController!.play();
+        }
+      }
+
+      // 🔹 Cập nhật tiến độ xem
+      if (event.betterPlayerEventType == BetterPlayerEventType.progress) {
+        final pos = event.parameters?['progress'] as Duration?;
+        final dur = event.parameters?['duration'] as Duration?;
+        if (pos != null && dur != null) {
+          _watchPosition = pos.inSeconds;
+          _videoDuration = dur.inSeconds;
+        }
+      }
+
+      // 🔹 Khi phát xong phim
+      if (event.betterPlayerEventType == BetterPlayerEventType.finished) {
+        debugPrint("🎬 Xem hết phim — đặt tiến độ về 0");
+        _watchPosition = 0;
+        _saveWatchProgress();
+      }
+    });
+
+    // 💾 Lưu định kỳ mỗi 10 giây
+    _saveTimer?.cancel();
+    _saveTimer = Timer.periodic(const Duration(seconds: 10), (_) {
+      if (_videoDuration > 0 && _watchPosition > 5) {
+        _saveWatchProgress();
+      }
+    });
+  }
+
+  void _playEpisode(int episodeIndex) {
+    if (_film == null || _film!.sources == null) return;
+    final urls = _extractEpisodeUrls(_film!.sources!);
+    if (urls.isEmpty) return;
+
+    final selectedUrl =
+    episodeIndex <= urls.length ? urls[episodeIndex - 1] : urls.last;
+
+    if (_betterPlayerController != null) {
+      _betterPlayerController!.setupDataSource(
+        BetterPlayerDataSource(
+          BetterPlayerDataSourceType.network,
+          selectedUrl,
+          videoFormat: BetterPlayerVideoFormat.hls,
+        ),
+      );
+    } else {
+      _initBetterPlayer(selectedUrl);
+    }
+
+    setState(() {
+      _isVideoReady = true;
+      _selectedEpisode = episodeIndex;
+    });
+  }
+
+  // ✅ Hàm lưu tiến độ xem
+  Future<void> _saveWatchProgress() async {
+    try {
+      await HistoryService.updateProgress(
+        profileId: _profileId,
+        filmId: widget.filmId,
+        episodeId: _selectedEpisode,
+        positionSeconds: _watchPosition,
+        durationSeconds: _videoDuration,
+      );
+      debugPrint("💾 Đã lưu tiến độ: $_watchPosition / $_videoDuration");
+    } catch (e) {
+      debugPrint("❌ Lỗi lưu tiến độ xem: $e");
+    }
+  }
+
   @override
   void dispose() {
+    // ✅ Lưu khi thoát
+    if (!_hasSaved && _videoDuration > 0 && _watchPosition > 5) {
+      _saveWatchProgress();
+      _hasSaved = true;
+    }
+    _saveTimer?.cancel();
     _videoController?.dispose();
     _youtubeController?.dispose();
+    _betterPlayerController?.dispose();
     _commentController.dispose();
+    _volumeController.removeListener();
     super.dispose();
   }
+
+  // ============================================================
+  // UI PHẦN DƯỚI VẪN GIỮ NGUYÊN
+  // ============================================================
 
   @override
   Widget build(BuildContext context) {
@@ -107,15 +351,13 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
           children: [
             Column(
               children: [
-                AspectRatio(aspectRatio: 16 / 9, child: _buildTrailerOrPoster()),
-
+                AspectRatio(aspectRatio: 16 / 9, child: _buildVideoSection()),
                 Expanded(
                   child: SingleChildScrollView(
                     padding: const EdgeInsets.all(16),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // 🔹 Tên phim
                         Text(
                           _film!.filmName,
                           style: const TextStyle(
@@ -125,8 +367,6 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
                           ),
                         ),
                         const SizedBox(height: 6),
-
-                        // 🔹 Thông tin cơ bản
                         Text(
                           "${_film!.releaseYear} | ${_film!.maturityRating.isNotEmpty ? _film!.maturityRating : 'Tất cả'} | ${_film!.countryName} | ${_film!.isSeries ? 'Phim bộ' : 'Phim lẻ'} | ${_film!.filmStatus}",
                           style: const TextStyle(
@@ -135,41 +375,9 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
                             fontWeight: FontWeight.w500,
                           ),
                         ),
-
                         const SizedBox(height: 10),
-
-                        // 🔹 Lượt xem + Đánh giá sao
-                        Row(
-                          children: [
-                            const Icon(Icons.remove_red_eye,
-                                color: Colors.white70, size: 16),
-                            const SizedBox(width: 4),
-                            const Text("91.019 lượt xem",
-                                style: TextStyle(
-                                    color: Colors.white70, fontSize: 13)),
-                            const SizedBox(width: 10),
-                            const Text("5.0",
-                                style: TextStyle(
-                                    color: Colors.amberAccent,
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 14)),
-                            const SizedBox(width: 6),
-                            Row(
-                              children: List.generate(
-                                5,
-                                    (index) => const Icon(
-                                  Icons.star,
-                                  color: Colors.amberAccent,
-                                  size: 16,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-
+                        _buildViewAndStar(),
                         const SizedBox(height: 12),
-
-                        // 🔹 Mô tả phim
                         Text(
                           _film!.description.isNotEmpty
                               ? _film!.description
@@ -180,7 +388,6 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
                             height: 1.4,
                           ),
                         ),
-
                         if (_film!.genres.isNotEmpty)
                           Padding(
                             padding: const EdgeInsets.only(top: 6),
@@ -193,44 +400,21 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
                               ),
                             ),
                           ),
-
                         const SizedBox(height: 14),
-
-                        // 🔹 Hàng nút hành động
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                           children: [
+                            _buildActionButton(Icons.favorite, "Yêu thích",
+                                isFavorite ? Colors.redAccent : Colors.white,
+                                    () => setState(() => isFavorite = !isFavorite)),
                             _buildActionButton(
-                              Icons.favorite,
-                              "Yêu thích",
-                              isFavorite ? Colors.redAccent : Colors.white,
-                                  () => setState(() => isFavorite = !isFavorite),
-                            ),
-                            _buildActionButton(Icons.bookmark, "Danh sách",
-                                Colors.white, () {}),
-                            _buildRatingButton(), // ⭐ Nút đánh giá
+                                Icons.bookmark, "Danh sách", Colors.white, () {}),
+                            _buildRatingButton(),
                           ],
                         ),
-
                         const SizedBox(height: 16),
-
-                        // 🔹 Tabs
-                        Container(
-                          height: 38,
-                          alignment: Alignment.center,
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                            children: [
-                              _buildTabItem("Tập phim", 0),
-                              _buildTabItem("Diễn viên", 1),
-                              _buildTabItem("Bình luận", 2),
-                            ],
-                          ),
-                        ),
-
+                        _buildTabs(),
                         const SizedBox(height: 10),
-
-                        // 🔹 Nội dung tab
                         if (_selectedTab == 0) ...[
                           _buildEpisodesSection(),
                           const SizedBox(height: 10),
@@ -248,8 +432,6 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
                 ),
               ],
             ),
-
-            // 🔙 Nút quay lại
             Positioned(
               top: 10,
               left: 10,
@@ -257,7 +439,10 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
                 backgroundColor: Colors.black54,
                 child: IconButton(
                   icon: const Icon(Icons.arrow_back, color: Colors.white),
-                  onPressed: () => Navigator.pop(context),
+                  onPressed: () {
+                    // 🟢 Khi nhấn nút quay lại, gửi tiến độ xem mới nhất về màn hình trước
+                    Navigator.pop(context, _watchPosition);
+                  },
                 ),
               ),
             ),
@@ -267,146 +452,104 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
     );
   }
 
-  // --- Tab Item ---
-  Widget _buildTabItem(String title, int index) {
-    final isSelected = _selectedTab == index;
-    return GestureDetector(
-      onTap: () => setState(() => _selectedTab = index),
-      child: Container(
-        width: 100,
-        padding: const EdgeInsets.symmetric(vertical: 6),
-        decoration: BoxDecoration(
-          border: Border(
-            bottom: BorderSide(
-              color: isSelected ? Colors.amberAccent : Colors.transparent,
-              width: 2,
-            ),
-          ),
-        ),
-        child: Center(
-          child: Text(
-            title,
-            style: TextStyle(
-              color: isSelected ? Colors.amberAccent : Colors.white70,
-              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-              fontSize: 14,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
+  Widget _buildVideoSection() {
+    if (_betterPlayerController != null) {
+      return BetterPlayer(controller: _betterPlayerController!);
+    }
 
-  // --- Trailer hoặc Poster ---
-  Widget _buildTrailerOrPoster() {
-    if (_youtubeController != null) {
-      return YoutubePlayer(
-        controller: _youtubeController!,
-        showVideoProgressIndicator: true,
-        progressIndicatorColor: Colors.greenAccent,
+    if (_videoController != null && _videoController!.value.isInitialized) {
+      return AspectRatio(
+        aspectRatio: _videoController!.value.aspectRatio,
+        child: VideoPlayer(_videoController!),
       );
     }
-    if (_videoController != null && _isVideoReady) {
-      return VideoPlayer(_videoController!);
-    }
-    return Image.network(
-      _film!.posterMain.isNotEmpty ? _film!.posterMain : '',
-      fit: BoxFit.cover,
-    );
-  }
 
-  // --- Nút Đánh giá (bên ngoài) ---
-  Widget _buildRatingButton() {
-    return GestureDetector(
-      onTap: _showRatingDialog,
-      child: Column(
-        children: [
-          Icon(
-            Icons.star,
-            color: _selectedRating > 0 ? Colors.amberAccent : Colors.white,
-            size: 26,
-          ),
-          const SizedBox(height: 4),
-          Text(
-            "Đánh giá",
-            style: TextStyle(
-              color: _selectedRating > 0 ? Colors.amberAccent : Colors.white,
-              fontSize: 12,
+    return Stack(
+      children: [
+        Image.network(
+          _film!.posterMain.isNotEmpty
+              ? _film!.posterMain
+              : "https://cdn.vtc/poster_default.png",
+          fit: BoxFit.cover,
+          width: double.infinity,
+          height: double.infinity,
+        ),
+        const Positioned.fill(
+          child: Center(
+            child: Text(
+              "Không có video khả dụng",
+              style: TextStyle(color: Colors.white70, fontSize: 14),
             ),
           ),
-        ],
-      ),
+        ),
+      ],
+    );
+  }
+  Widget _buildViewAndStar() {
+    return Row(
+      children: [
+        const Icon(Icons.remove_red_eye, color: Colors.white70, size: 16),
+        const SizedBox(width: 4),
+        const Text("91.019 lượt xem",
+            style: TextStyle(color: Colors.white70, fontSize: 13)),
+        const SizedBox(width: 10),
+        const Text("5.0",
+            style: TextStyle(
+                color: Colors.amberAccent,
+                fontWeight: FontWeight.bold,
+                fontSize: 14)),
+        const SizedBox(width: 6),
+        Row(
+          children: List.generate(
+            5,
+                (index) =>
+            const Icon(Icons.star, color: Colors.amberAccent, size: 16),
+          ),
+        ),
+      ],
     );
   }
 
-  // --- Popup chọn sao (toggle bật/tắt) ---
-  void _showRatingDialog() {
-    showDialog(
-      context: context,
-      builder: (context) {
-        int tempRating = _selectedRating; // Lưu trạng thái tạm trong dialog
-
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            return AlertDialog(
-              backgroundColor: Colors.black87,
-              title: const Text(
-                "Đánh giá phim",
-                style: TextStyle(color: Colors.amberAccent, fontSize: 18),
-              ),
-              content: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: List.generate(5, (index) {
-                  final starIndex = index + 1;
-                  final isSelected = tempRating >= starIndex;
-                  return IconButton(
-                    icon: Icon(
-                      Icons.star,
-                      color: isSelected
-                          ? Colors.amberAccent
-                          : Colors.white24,
-                      size: 34,
-                    ),
-                    onPressed: () {
-                      setDialogState(() {
-                        // ✅ Nếu nhấn lại cùng sao => tắt toàn bộ
-                        if (tempRating == starIndex) {
-                          tempRating = 0;
-                          _selectedRating = 0;
-                        } else {
-                          tempRating = starIndex;
-                          _selectedRating = starIndex;
-                        }
-                      });
-
-                      // Cập nhật UI bên ngoài
-                      setState(() => _selectedRating = tempRating);
-                    },
-                  );
-                }),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text(
-                    "Đóng",
-                    style: TextStyle(color: Colors.white70),
-                  ),
+  Widget _buildTabs() {
+    final tabs = ["Tập phim", "Diễn viên", "Bình luận"];
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+      children: List.generate(tabs.length, (i) {
+        final isSelected = _selectedTab == i;
+        return GestureDetector(
+          onTap: () => setState(() => _selectedTab = i),
+          child: Container(
+            width: 100,
+            padding: const EdgeInsets.symmetric(vertical: 6),
+            decoration: BoxDecoration(
+              border: Border(
+                bottom: BorderSide(
+                  color: isSelected ? Colors.amberAccent : Colors.transparent,
+                  width: 2,
                 ),
-              ],
-            );
-          },
+              ),
+            ),
+            child: Center(
+              child: Text(
+                tabs[i],
+                style: TextStyle(
+                  color: isSelected ? Colors.amberAccent : Colors.white70,
+                  fontWeight:
+                  isSelected ? FontWeight.bold : FontWeight.normal,
+                  fontSize: 14,
+                ),
+              ),
+            ),
+          ),
         );
-      },
+      }),
     );
   }
 
-  // --- Danh sách tập phim ---
   Widget _buildEpisodesSection() {
     final seasons = _film!.seasons ?? [];
-
     if (seasons.isEmpty) {
-      return const Text("Chưa có danh sách mùa hoặc tập.",
+      return const Text("Chưa có danh sách tập phim",
           style: TextStyle(color: Colors.white70));
     }
 
@@ -453,7 +596,7 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
               final epNum = episodes[i]["Episode_number"];
               final isSelected = _selectedEpisode == epNum;
               return GestureDetector(
-                onTap: () => setState(() => _selectedEpisode = epNum),
+                onTap: () => _playEpisode(epNum),
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 150),
                   margin: const EdgeInsets.symmetric(horizontal: 5),
@@ -465,8 +608,9 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
                         : Colors.grey[850],
                     borderRadius: BorderRadius.circular(6),
                     border: Border.all(
-                      color:
-                      isSelected ? Colors.greenAccent : Colors.transparent,
+                      color: isSelected
+                          ? Colors.greenAccent
+                          : Colors.transparent,
                       width: 1.1,
                     ),
                   ),
@@ -489,7 +633,6 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
       ],
     );
   }
-
   // --- Danh sách diễn viên ---
   Widget _buildActorsSection() {
     final actors = _film!.actors;
@@ -709,4 +852,82 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
       ),
     );
   }
+  // --- Nút đánh giá (⭐) ---
+  Widget _buildRatingButton() {
+    return GestureDetector(
+      onTap: _showRatingDialog,
+      child: Column(
+        children: [
+          Icon(
+            Icons.star,
+            color: _selectedRating > 0 ? Colors.amberAccent : Colors.white,
+            size: 26,
+          ),
+          const SizedBox(height: 4),
+          Text(
+            "Đánh giá",
+            style: TextStyle(
+              color: _selectedRating > 0 ? Colors.amberAccent : Colors.white,
+              fontSize: 12,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+// --- Popup chọn sao ---
+  void _showRatingDialog() {
+    showDialog(
+      context: context,
+      builder: (context) {
+        int tempRating = _selectedRating;
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              backgroundColor: Colors.black87,
+              title: const Text(
+                "Đánh giá phim",
+                style: TextStyle(color: Colors.amberAccent, fontSize: 18),
+              ),
+              content: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: List.generate(5, (index) {
+                  final starIndex = index + 1;
+                  final isSelected = tempRating >= starIndex;
+                  return IconButton(
+                    icon: Icon(
+                      Icons.star,
+                      color: isSelected ? Colors.amberAccent : Colors.white24,
+                      size: 34,
+                    ),
+                    onPressed: () {
+                      setDialogState(() {
+                        if (tempRating == starIndex) {
+                          tempRating = 0;
+                        } else {
+                          tempRating = starIndex;
+                        }
+                      });
+                      setState(() => _selectedRating = tempRating);
+                    },
+                  );
+                }),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text(
+                    "Đóng",
+                    style: TextStyle(color: Colors.white70),
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
 }
