@@ -3,6 +3,10 @@ import '../../models/History.dart';
 import '../../services/History_Service.dart';
 import '../detail/Detail_Films.dart';
 
+// 🔥 BẠN ĐANG THIẾU IMPORT NÀY
+import '../../services/auth_service.dart';
+import '../../config/api.dart';
+
 class FavoriteScreen extends StatefulWidget {
   const FavoriteScreen({super.key});
 
@@ -15,9 +19,29 @@ class _FavoriteScreenState extends State<FavoriteScreen> {
   bool _loading = false;
   List<History> _continueList = [];
 
-  final int _profileId = 1; // ID hồ sơ người dùng
+  int _profileId = 0; // ❗Không xét cứng nữa
+
+  @override
+  void initState() {
+    super.initState();
+    _loadProfileId(); // 🔥 lấy profile ID thật
+  }
+
+  Future<void> _loadProfileId() async {
+    await Api.loadToken();
+    final me = await AuthService.getMe();
+    final user = me?['user'];
+
+    if (user != null) {
+      setState(() {
+        _profileId = user['Profile_id'] ?? user['profile_id'] ?? user['id'];
+      });
+    }
+  }
 
   Future<void> _loadContinueWatching() async {
+    if (_profileId == 0) return; // ⛔ chưa load xong thì không gọi API
+
     setState(() => _loading = true);
     try {
       final data = await HistoryService.getContinueWatching(_profileId);
@@ -83,6 +107,7 @@ class _FavoriteScreenState extends State<FavoriteScreen> {
           ListTile(
             onTap: () async {
               setState(() => _showContinue = !_showContinue);
+
               if (_showContinue && _continueList.isEmpty) {
                 await _loadContinueWatching();
               }
@@ -170,7 +195,6 @@ class _FavoriteScreenState extends State<FavoriteScreen> {
     return Padding(
       padding: const EdgeInsets.only(left: 10, bottom: 10),
       child: SizedBox(
-        // 🔹 Tăng chiều cao để không bị overflow
         height: 330,
         child: ListView.builder(
           scrollDirection: Axis.horizontal,
@@ -181,7 +205,6 @@ class _FavoriteScreenState extends State<FavoriteScreen> {
 
             return GestureDetector(
               onTap: () async {
-                // ⏯️ Mở DetailFilmScreen và đợi khi người dùng quay lại
                 final updatedPosition = await Navigator.push<int>(
                   context,
                   MaterialPageRoute(
@@ -192,24 +215,22 @@ class _FavoriteScreenState extends State<FavoriteScreen> {
                   ),
                 );
 
-                // 🔁 Nếu có tiến độ mới trả về, cập nhật lại trên giao diện
                 if (updatedPosition != null) {
                   setState(() {
                     item.positionSeconds = updatedPosition;
                   });
                 } else {
-                  // Nếu không có dữ liệu trả về (người dùng thoát nhanh), vẫn load lại danh sách
                   await _loadContinueWatching();
                 }
               },
-
               child: Container(
                 width: 180,
-                margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                margin:
+                const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // --- Poster phim ---
+                    // --- Poster
                     Stack(
                       children: [
                         ClipRRect(
@@ -217,11 +238,11 @@ class _FavoriteScreenState extends State<FavoriteScreen> {
                           child: Image.network(
                             item.posterUrl,
                             width: 180,
-                            height: 230, // tăng 10px cho cân đối
+                            height: 230,
                             fit: BoxFit.cover,
                           ),
                         ),
-                        // --- Nút xoá ---
+                        // --- nút xóa
                         Positioned(
                           top: 6,
                           right: 6,
@@ -238,7 +259,7 @@ class _FavoriteScreenState extends State<FavoriteScreen> {
                             ),
                           ),
                         ),
-                        // --- Thanh tiến độ ---
+                        // --- tiến độ
                         Positioned(
                           bottom: 0,
                           left: 0,
@@ -253,20 +274,18 @@ class _FavoriteScreenState extends State<FavoriteScreen> {
                     ),
                     const SizedBox(height: 10),
 
-                    // --- Thông tin tập phim ---
+                    // --- Thông tin
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 4),
                       child: Text(
-                        "Tập ${item.episodeNumber ?? 1} • ${(item
-                            .positionSeconds ~/ 60)}m / ${(item
-                            .durationSeconds ~/ 60)}m",
+                        "Tập ${item.episodeNumber ?? 1} • ${(item.positionSeconds ~/ 60)}m / ${(item.durationSeconds ~/ 60)}m",
                         style: const TextStyle(
                             color: Colors.white70, fontSize: 12),
                       ),
                     ),
                     const SizedBox(height: 6),
 
-                    // --- Tên phim ---
+                    // --- Tên phim
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 4),
                       child: Text(
@@ -282,14 +301,13 @@ class _FavoriteScreenState extends State<FavoriteScreen> {
                     ),
                     const SizedBox(height: 2),
 
-                    // --- Tên phụ (sub title) ---
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 4),
-                      child: Text(
-                        "Sword and Beloved", // hoặc item.subName nếu có
+                      child: const Text(
+                        "Sword and Beloved",
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
+                        style: TextStyle(
                           color: Colors.white54,
                           fontSize: 12,
                           fontStyle: FontStyle.italic,

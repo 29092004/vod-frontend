@@ -44,6 +44,10 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
   int _selectedSeason = 0;
   int _selectedTab = 0;
 
+  int _selectedEpisodeId = 1;
+  int _selectedEpisodeNumber = 1;
+
+
   //  Bình luận
   List<dynamic> _comments = [];
   bool _loadingComments = true;
@@ -56,7 +60,7 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
   //  Biến theo dõi tiến độ xem phim
   int _watchPosition = 0;
   int _videoDuration = 0;
-  int _profileId = 1;
+  int _profileId = 0;
   bool _hasSaved = false;
   Timer? _saveTimer;
 
@@ -76,6 +80,14 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
 
   Future<void> _initData() async {
     await Api.loadToken();
+    // 🔥 LẤY PROFILE ID TỰ ĐỘNG TỪ JWT
+    final me = await AuthService.getMe();
+    final user = me?['user'];
+    if (user != null) {
+      setState(() {
+        _profileId = user['Profile_id'] ?? user['profile_id'] ?? user['id'];
+      });
+    }
     await _loadFilm();
     await _loadAverageScore();
     await _loadComments();
@@ -117,11 +129,16 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
         if (urls.isNotEmpty) {
           final firstUrl = urls.first;
           _initBetterPlayer(firstUrl);
+          final epId =
+              data.seasons?[0]["Episodes"]?[0]["Episode_id"] ?? 1;
+
           setState(() {
             _isVideoReady = true;
-            _selectedEpisode = 1;
+            _selectedEpisodeNumber = 1;  // highlight tập 1
+            _selectedEpisodeId = epId;   // gán đúng ID từ database
           });
           return;
+
         }
       }
 
@@ -275,30 +292,44 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
     });
   }
 
-  void _playEpisode(int episodeIndex) {
+  void _playEpisode(Map<String, dynamic> episodeData) async {
     if (_film == null || _film!.sources == null) return;
+
+    final int episodeId = episodeData["Episode_id"];
+    final int episodeNumber = episodeData["Episode_number"];
+
     final urls = _extractEpisodeUrls(_film!.sources!);
     if (urls.isEmpty) return;
 
-    final selectedUrl = episodeIndex <= urls.length
-        ? urls[episodeIndex - 1]
-        : urls.last;
+    final int index = (episodeNumber - 1).clamp(0, urls.length - 1);
+    final selectedUrl = urls[index];
+
+    final currentVolume = _systemVolume;
 
     if (_betterPlayerController != null) {
-      _betterPlayerController!.setupDataSource(
+      await _betterPlayerController!.setupDataSource(
         BetterPlayerDataSource(
           BetterPlayerDataSourceType.network,
           selectedUrl,
           videoFormat: BetterPlayerVideoFormat.hls,
         ),
       );
+
+      _betterPlayerController!.addEventsListener((event) {
+        if (event.betterPlayerEventType == BetterPlayerEventType.initialized) {
+          _betterPlayerController!.setVolume(currentVolume);
+        }
+      });
     } else {
       _initBetterPlayer(selectedUrl);
     }
 
+    // ⭐ FIX CHÍNH
     setState(() {
       _isVideoReady = true;
-      _selectedEpisode = episodeIndex;
+
+      _selectedEpisodeNumber = episodeNumber;  // UI highlight
+      _selectedEpisodeId = episodeId;          // Lưu lịch sử xem
     });
   }
 
@@ -308,7 +339,7 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
       await HistoryService.updateProgress(
         profileId: _profileId,
         filmId: widget.filmId,
-        episodeId: _selectedEpisode,
+        episodeId: _selectedEpisodeId,
         positionSeconds: _watchPosition,
         durationSeconds: _videoDuration,
       );
@@ -867,9 +898,9 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
           child: Row(
             children: List.generate(episodes.length, (i) {
               final epNum = episodes[i]["Episode_number"];
-              final isSelected = _selectedEpisode == epNum;
+              final isSelected = (_selectedEpisodeId == episodes[i]["Episode_id"]);
               return GestureDetector(
-                onTap: () => _playEpisode(epNum),
+                onTap: () => _playEpisode(episodes[i]),
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 150),
                   margin: const EdgeInsets.symmetric(horizontal: 5),
