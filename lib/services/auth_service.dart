@@ -7,13 +7,13 @@ import '../config/api.dart';
 class AuthService {
   static final GoogleSignIn _googleSignIn = GoogleSignIn();
 
-  // 👉 Kiểm tra kết nối
+  // Kiểm tra kết nối
   static Future<bool> _checkConnection() async {
     final result = await Connectivity().checkConnectivity();
     return result != ConnectivityResult.none;
   }
 
-  // 👉 Đăng ký
+  // Đăng ký
   static Future<Map<String, dynamic>> register(String email, String password) async {
     if (!await _checkConnection()) return {'error': 'Không có kết nối mạng'};
 
@@ -33,12 +33,12 @@ class AuthService {
     }
   }
 
-  // 👉 Đăng nhập thường
+  // Đăng nhập thường
   static Future<Map<String, dynamic>> login(String email, String password) async {
     if (!await _checkConnection()) return {'error': 'Không có kết nối mạng'};
 
     try {
-      // ❗ Xóa token cũ trước khi login
+      //  Xóa token cũ trước khi login
       await Api.clearToken();
 
       final res = await Api.post('auth/login', {
@@ -62,26 +62,20 @@ class AuthService {
     }
   }
 
-  // 👉 Đăng nhập Google – BẢN FIX LỖI
+  //  Đăng nhập Google
   static Future<Map<String, dynamic>> signInWithGoogle() async {
     if (!await _checkConnection()) return {'error': 'Không có kết nối mạng'};
 
     try {
-      // ❗ Xóa token cũ để tránh getMe() trả về user cũ
       await Api.clearToken();
-
-      // ❗ Force Google logout để tránh dùng lại tài khoản cũ
       try {
-        final isSignedIn = await _googleSignIn.isSignedIn();
-        if (isSignedIn) await _googleSignIn.signOut();
+        await _googleSignIn.signOut();
+        await _googleSignIn.disconnect();
       } catch (_) {}
 
       final googleUser = await _googleSignIn.signIn();
-      if (googleUser == null) {
-        return {'error': 'Người dùng hủy đăng nhập Google'};
-      }
+      if (googleUser == null) return {'error': 'Người dùng hủy đăng nhập Google'};
 
-      // Gửi dữ liệu Google lên server
       final res = await Api.post('auth/google', {
         'email': googleUser.email,
         'name': googleUser.displayName ?? '',
@@ -92,14 +86,11 @@ class AuthService {
       if (data is String) data = jsonDecode(data);
       if (data is! Map) return {'error': 'Phản hồi không hợp lệ từ server'};
 
-      // Lưu token mới
+      // Lưu token
       final token = data['token']?.toString();
       if (token != null && token.isNotEmpty) {
         await Api.setToken(token);
       }
-
-      // ❗ Không dùng lại getMe()
-      // Vì sẽ gây lỗi ghi đè user bởi token cũ → profile_id sai
 
       return Map<String, dynamic>.from(data);
     } on DioException catch (e) {
@@ -107,7 +98,8 @@ class AuthService {
     }
   }
 
-  // 👉 Lấy user qua token
+
+  //  Lấy user qua token
   static Future<Map<String, dynamic>?> getMe() async {
     try {
       final res = await Api.get('auth/me');
@@ -122,7 +114,7 @@ class AuthService {
     }
   }
 
-  // 👉 Login tự động
+  //  Login tự động
   static Future<bool> tryAutoLogin() async {
     await Api.loadToken();
     final me = await getMe();
