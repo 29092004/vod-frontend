@@ -7,13 +7,13 @@ import '../config/api.dart';
 class AuthService {
   static final GoogleSignIn _googleSignIn = GoogleSignIn();
 
-  // 👉 Kiểm tra kết nối
+  // Kiểm tra kết nối
   static Future<bool> _checkConnection() async {
     final result = await Connectivity().checkConnectivity();
     return result != ConnectivityResult.none;
   }
 
-  // 👉 Đăng ký
+  // Đăng ký
   static Future<Map<String, dynamic>> register(String email, String password) async {
     if (!await _checkConnection()) return {'error': 'Không có kết nối mạng'};
 
@@ -33,12 +33,12 @@ class AuthService {
     }
   }
 
-  // 👉 Đăng nhập thường
+  // Đăng nhập thường
   static Future<Map<String, dynamic>> login(String email, String password) async {
     if (!await _checkConnection()) return {'error': 'Không có kết nối mạng'};
 
     try {
-      // ❗ Xóa token cũ trước khi login
+      //  Xóa token cũ trước khi login
       await Api.clearToken();
 
       final res = await Api.post('auth/login', {
