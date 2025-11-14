@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import 'package:movie_app/screens/auth/login.dart';
 import 'package:movie_app/screens/home/Home_Screen.dart';
 import 'package:movie_app/services/auth_service.dart';
@@ -8,7 +9,16 @@ import 'config/api.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  try {
+    final isSignedIn = await GoogleSignIn().isSignedIn();
+    if (isSignedIn) await GoogleSignIn().signOut();
+  } catch (_) {}
 
+  await SystemChrome.setPreferredOrientations([
+    DeviceOrientation.portraitUp,
+    DeviceOrientation.landscapeLeft,
+    DeviceOrientation.landscapeRight,
+  ]);
 
   await SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
@@ -18,7 +28,7 @@ void main() async {
 
   await dotenv.load(fileName: ".env");
   await Api.init();
-  await Api.clearToken();
+  
   final isLoggedIn = await AuthService.tryAutoLogin();
 
   runApp(MyApp(isLoggedIn: isLoggedIn));

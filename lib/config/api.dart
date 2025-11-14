@@ -86,10 +86,36 @@ class Api {
   static Future<void> clearToken() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_key);
-    _token = null;
-    _dio.options.headers.remove('Authorization');
 
+    _token = null;
+
+    // Xóa toàn bộ header Authorization
+    _dio.options.headers.remove('Authorization');
+    _dio.options.headers['Authorization'] = null;
+
+    // Xóa interceptor cũ giữ token
+    _dio.interceptors.clear();
+
+    // Add lại interceptor parse json + log
+    _dio.interceptors.add(InterceptorsWrapper(
+      onResponse: (res, handler) {
+        if (res.data is String) {
+          try { res.data = jsonDecode(res.data); } catch (_) {}
+        }
+        return handler.next(res);
+      },
+    ));
+
+    _dio.interceptors.add(LogInterceptor(
+      request: true,
+      requestHeader: true,
+      requestBody: true,
+      responseHeader: false,
+      responseBody: true,
+      error: true,
+    ));
   }
+
 
 
   // BASIC REQUESTS
