@@ -205,23 +205,22 @@ class _FavoriteScreenState extends State<FavoriteScreen> {
 
             return GestureDetector(
               onTap: () async {
-                final updatedPosition = await Navigator.push<int>(
+                final result = await Navigator.push(
                   context,
                   MaterialPageRoute(
                     builder: (_) => DetailFilmScreen(
                       filmId: item.filmId,
+                      episodeId: item.episodeId,
                       startPosition: Duration(seconds: item.positionSeconds),
                     ),
                   ),
                 );
 
-                if (updatedPosition != null) {
-                  setState(() {
-                    item.positionSeconds = updatedPosition;
-                  });
-                } else {
-                  await _loadContinueWatching();
+// Nếu DetailFilmScreen trả về giá trị mới → reload từ API
+                if (result != null) {
+                  await _loadContinueWatching();   // Lấy dữ liệu mới từ DB trả về
                 }
+
               },
               child: Container(
                 width: 180,
