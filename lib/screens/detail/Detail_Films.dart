@@ -13,6 +13,7 @@ import '../../config/api.dart';
 import '../../services/Comment_Service.dart';
 import '../../services/auth_service.dart';
 import '../../services/Rating_Service.dart';
+import '../../services/Favorite_Service.dart';
 
 class DetailFilmScreen extends StatefulWidget {
   final int filmId;
@@ -28,6 +29,7 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
   bool isFavorite = false;
   bool _isLoading = true;
   bool _isVideoReady = false;
+  bool _favLoading = false; // để chặn spam khi đang gọi API
   int _selectedRating = 0;
 
   double _avgScore = 0.0;
@@ -46,7 +48,6 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
 
   int _selectedEpisodeId = 1;
   int _selectedEpisodeNumber = 1;
-
 
   //  Bình luận
   List<dynamic> _comments = [];
@@ -78,6 +79,80 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
     _initData();
   }
 
+  void _showMessage(String message) {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Future<void> _toggleFavorite() async {
+    if (_profileId == 0) {
+      _showMessage('Vui lòng đăng nhập để sử dụng danh sách yêu thích');
+      return;
+    }
+
+    if (_favLoading) return;
+
+    setState(() {
+      _favLoading = true;
+    });
+
+    try {
+      if (!isFavorite) {
+        // Chưa yêu thích → thêm vào danh sách
+        final ok = await FavoriteService.addFavorite(
+          profileId: _profileId,
+          filmId: widget.filmId,
+        );
+
+        if (ok) {
+          setState(() => isFavorite = true);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("Đã thêm vào danh sách yêu thích")),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("Không thể thêm vào danh sách yêu thích")),
+          );
+        }
+      } else {
+        // Đã yêu thích -> xoá ra
+        final ok = await FavoriteService.removeFavorite(
+          _profileId,
+          widget.filmId,
+        );
+        if (ok) {
+          if (!mounted) return;
+          setState(() {
+            isFavorite = false;
+          });
+          _showMessage('Đã xóa khỏi danh sách yêu thích');
+        } else {
+          _showMessage('Không thể xóa khỏi danh sách yêu thích');
+        }
+      }
+    } catch (e) {
+      // Nếu muốn phân biệt lỗi duplicate có thể parse message từ Api.handleError
+      _showMessage('Có lỗi xảy ra, vui lòng thử lại');
+    } finally {
+      if (!mounted) return;
+      setState(() {
+        _favLoading = false;
+      });
+    }
+  }
+
+  Future<void> _checkFavorite() async {
+    if (!mounted) return;
+    if (_profileId == 0) return;
+
+    final result = await FavoriteService.isFavorite(_profileId, widget.filmId);
+    if (!mounted) return;
+    setState(() {
+      isFavorite = result;
+    });
+  }
+
   Future<void> _initData() async {
     await Api.loadToken();
     // 🔥 LẤY PROFILE ID TỰ ĐỘNG TỪ JWT
@@ -88,6 +163,12 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
         _profileId = user['Profile_id'] ?? user['profile_id'] ?? user['id'];
       });
     }
+
+    // kiểm tra trạng thái yêu thích
+    if (_profileId != 0) {
+      await _checkFavorite();
+    }
+
     await _loadFilm();
     await _loadAverageScore();
     await _loadComments();
@@ -129,16 +210,14 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
         if (urls.isNotEmpty) {
           final firstUrl = urls.first;
           _initBetterPlayer(firstUrl);
-          final epId =
-              data.seasons?[0]["Episodes"]?[0]["Episode_id"] ?? 1;
+          final epId = data.seasons?[0]["Episodes"]?[0]["Episode_id"] ?? 1;
 
           setState(() {
             _isVideoReady = true;
-            _selectedEpisodeNumber = 1;  // highlight tập 1
-            _selectedEpisodeId = epId;   // gán đúng ID từ database
+            _selectedEpisodeNumber = 1; // highlight tập 1
+            _selectedEpisodeId = epId; // gán đúng ID từ database
           });
           return;
-
         }
       }
 
@@ -328,8 +407,8 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
     setState(() {
       _isVideoReady = true;
 
-      _selectedEpisodeNumber = episodeNumber;  // UI highlight
-      _selectedEpisodeId = episodeId;          // Lưu lịch sử xem
+      _selectedEpisodeNumber = episodeNumber; // UI highlight
+      _selectedEpisodeId = episodeId; // Lưu lịch sử xem
     });
   }
 
@@ -608,7 +687,9 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
                               Icons.favorite,
                               "Yêu thích",
                               isFavorite ? Colors.redAccent : Colors.white,
-                              () => setState(() => isFavorite = !isFavorite),
+                              () {
+                                if (!_favLoading) _toggleFavorite();
+                              },
                             ),
                             _buildActionButton(
                               Icons.bookmark,
@@ -898,7 +979,8 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
           child: Row(
             children: List.generate(episodes.length, (i) {
               final epNum = episodes[i]["Episode_number"];
-              final isSelected = (_selectedEpisodeId == episodes[i]["Episode_id"]);
+              final isSelected =
+                  (_selectedEpisodeId == episodes[i]["Episode_id"]);
               return GestureDetector(
                 onTap: () => _playEpisode(episodes[i]),
                 child: AnimatedContainer(
@@ -1315,7 +1397,6 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
       }
 
       _commentController.clear();
-
 
       await _loadComments();
 
