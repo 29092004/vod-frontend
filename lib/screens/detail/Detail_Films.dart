@@ -17,9 +17,10 @@ import '../../services/Favorite_Service.dart';
 
 class DetailFilmScreen extends StatefulWidget {
   final int filmId;
+  final int? episodeId;
   final Duration? startPosition;
 
-  const DetailFilmScreen({super.key, required this.filmId, this.startPosition});
+  const DetailFilmScreen({super.key, required this.filmId, this.startPosition, this.episodeId});
 
   @override
   State<DetailFilmScreen> createState() => _DetailFilmScreenState();
@@ -170,6 +171,10 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
     }
 
     await _loadFilm();
+    if (widget.episodeId != null) {
+      _selectedEpisodeId = widget.episodeId!;
+    }
+
     await _loadAverageScore();
     await _loadComments();
   }
@@ -214,8 +219,16 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
 
           setState(() {
             _isVideoReady = true;
-            _selectedEpisodeNumber = 1; // highlight tập 1
-            _selectedEpisodeId = epId; // gán đúng ID từ database
+            if (widget.episodeId != null) {
+              // 🔥 Load tập đang xem từ xem tiếp
+              _selectedEpisodeId = widget.episodeId!;
+              _selectedEpisodeNumber = _findEpisodeNumberById(widget.episodeId!, data);
+            } else {
+              // 🔥 Mặc định tập 1
+              _selectedEpisodeId = epId;
+              _selectedEpisodeNumber = 1;
+            }
+
           });
           return;
         }
@@ -279,6 +292,18 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
     }
     return urls;
   }
+
+  int _findEpisodeNumberById(int episodeId, FilmInfo film) {
+    for (var season in film.seasons ?? []) {
+      for (var ep in (season["Episodes"] ?? [])) {
+        if (ep["Episode_id"] == episodeId) {
+          return ep["Episode_number"];
+        }
+      }
+    }
+    return 1;
+  }
+
 
   // ✅ Khởi tạo BetterPlayer phát tiếp ngay vị trí đang xem
   void _initBetterPlayer(String url) {
@@ -383,9 +408,14 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
     final int index = (episodeNumber - 1).clamp(0, urls.length - 1);
     final selectedUrl = urls[index];
 
-    final currentVolume = _systemVolume;
+    // ⭐ RESET tiến độ khi đổi tập
+    _watchPosition = 0;
+
+    final volume = _systemVolume;
 
     if (_betterPlayerController != null) {
+
+      // Load tập mới
       await _betterPlayerController!.setupDataSource(
         BetterPlayerDataSource(
           BetterPlayerDataSourceType.network,
@@ -394,21 +424,18 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
         ),
       );
 
-      _betterPlayerController!.addEventsListener((event) {
-        if (event.betterPlayerEventType == BetterPlayerEventType.initialized) {
-          _betterPlayerController!.setVolume(currentVolume);
-        }
-      });
+      // ⭐ QUAN TRỌNG — RESET VỀ 0 GIÂY
+      await _betterPlayerController!.seekTo(Duration.zero);
+
+      _betterPlayerController!.setVolume(volume);
     } else {
       _initBetterPlayer(selectedUrl);
     }
 
-    // ⭐ FIX CHÍNH
     setState(() {
+      _selectedEpisodeId = episodeId;
+      _selectedEpisodeNumber = episodeNumber;
       _isVideoReady = true;
-
-      _selectedEpisodeNumber = episodeNumber; // UI highlight
-      _selectedEpisodeId = episodeId; // Lưu lịch sử xem
     });
   }
 
@@ -733,8 +760,11 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
                 child: IconButton(
                   icon: const Icon(Icons.arrow_back, color: Colors.white),
                   onPressed: () {
-                    // 🟢 Khi nhấn nút quay lại, gửi tiến độ xem mới nhất về màn hình trước
-                    Navigator.pop(context, _watchPosition);
+                    Navigator.pop(context, {
+                      "episode_id": _selectedEpisodeId,
+                      "position": _watchPosition,
+                      "duration": _videoDuration,
+                    });
                   },
                 ),
               ),
