@@ -6,6 +6,7 @@ import '../detail/Detail_Films.dart';
 // 🔥 BẠN ĐANG THIẾU IMPORT NÀY
 import '../../services/auth_service.dart';
 import '../../config/api.dart';
+import 'favorite_movies_screen.dart';
 
 class FavoriteScreen extends StatefulWidget {
   const FavoriteScreen({super.key});
@@ -93,7 +94,12 @@ class _FavoriteScreenState extends State<FavoriteScreen> {
           _buildSectionItem(
             icon: Icons.favorite_rounded,
             title: "Yêu thích",
-            onTap: () {},
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const FavoriteMoviesScreen()),
+              );
+            },
           ),
           _divider(),
           _buildSectionItem(
@@ -112,8 +118,11 @@ class _FavoriteScreenState extends State<FavoriteScreen> {
                 await _loadContinueWatching();
               }
             },
-            leading: const Icon(Icons.history_rounded,
-                color: Colors.white, size: 28),
+            leading: const Icon(
+              Icons.history_rounded,
+              color: Colors.white,
+              size: 28,
+            ),
             title: const Text(
               "Xem tiếp",
               style: TextStyle(
@@ -129,8 +138,10 @@ class _FavoriteScreenState extends State<FavoriteScreen> {
               color: Colors.white38,
               size: _showContinue ? 24 : 16,
             ),
-            contentPadding:
-            const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 20,
+              vertical: 4,
+            ),
           ),
 
           if (_showContinue) _buildContinueList(),
@@ -157,10 +168,12 @@ class _FavoriteScreenState extends State<FavoriteScreen> {
           fontWeight: FontWeight.w500,
         ),
       ),
-      trailing: const Icon(Icons.arrow_forward_ios_rounded,
-          size: 16, color: Colors.white38),
-      contentPadding:
-      const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+      trailing: const Icon(
+        Icons.arrow_forward_ios_rounded,
+        size: 16,
+        color: Colors.white38,
+      ),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
     );
   }
 
@@ -216,16 +229,14 @@ class _FavoriteScreenState extends State<FavoriteScreen> {
                   ),
                 );
 
-// Nếu DetailFilmScreen trả về giá trị mới → reload từ API
+                // Nếu DetailFilmScreen trả về giá trị mới → reload từ API
                 if (result != null) {
-                  await _loadContinueWatching();   // Lấy dữ liệu mới từ DB trả về
+                  await _loadContinueWatching(); // Lấy dữ liệu mới từ DB trả về
                 }
-
               },
               child: Container(
                 width: 180,
-                margin:
-                const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -253,8 +264,11 @@ class _FavoriteScreenState extends State<FavoriteScreen> {
                                 borderRadius: BorderRadius.circular(50),
                               ),
                               padding: const EdgeInsets.all(4),
-                              child: const Icon(Icons.close_rounded,
-                                  color: Colors.white, size: 18),
+                              child: const Icon(
+                                Icons.close_rounded,
+                                color: Colors.white,
+                                size: 18,
+                              ),
                             ),
                           ),
                         ),
@@ -279,7 +293,9 @@ class _FavoriteScreenState extends State<FavoriteScreen> {
                       child: Text(
                         "Tập ${item.episodeNumber ?? 1} • ${(item.positionSeconds ~/ 60)}m / ${(item.durationSeconds ~/ 60)}m",
                         style: const TextStyle(
-                            color: Colors.white70, fontSize: 12),
+                          color: Colors.white70,
+                          fontSize: 12,
+                        ),
                       ),
                     ),
                     const SizedBox(height: 6),

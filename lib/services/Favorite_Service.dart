@@ -63,7 +63,6 @@ class FavoriteService {
         final data = r.data;
         if (data is Map &&
             data['error'] == 'Phim này đã có trong danh sách yêu thích') {
-          
           return true;
         }
       }
@@ -100,5 +99,26 @@ class FavoriteService {
       print('Lỗi không xác định removeFavorite: $e');
       return false;
     }
+  }
+
+  /// Lấy danh sách favorite theo profile
+  static Future<List<Map<String, dynamic>>> getFavoritesByProfile(int profileId) async {
+    if (profileId == 0) return [];
+
+    await Api.loadToken();
+    final Response res = await Api.get('/favorites/profile/$profileId');
+
+    final body = res.data;
+    if (body is Map && body['success'] == true) {
+      final data = body['data'];
+      if (data is List) {
+        return data
+            .where((e) => e is Map)
+            .map((e) => Map<String, dynamic>.from(e as Map))
+            .toList();
+      }
+    }
+
+    return [];
   }
 }
