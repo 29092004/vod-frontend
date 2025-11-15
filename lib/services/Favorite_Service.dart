@@ -52,20 +52,18 @@ class FavoriteService {
 
       final body = res.data;
 
-      // BE đang trả: { success: true, message: 'Đã thêm vào danh sách yêu thích' }
       if (body is Map && body['success'] == true) {
         return true;
       }
 
       return false;
     } on DioException catch (e) {
-      // ❗ Trường hợp BE báo "Phim này đã có trong danh sách yêu thích"
       final r = e.response;
       if (r != null && r.statusCode == 400) {
         final data = r.data;
         if (data is Map &&
             data['error'] == 'Phim này đã có trong danh sách yêu thích') {
-          // Về mặt trạng thái: phim đã nằm trong danh sách -> coi như thành công
+          
           return true;
         }
       }
