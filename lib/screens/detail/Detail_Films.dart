@@ -14,13 +14,21 @@ import '../../services/Comment_Service.dart';
 import '../../services/auth_service.dart';
 import '../../services/Rating_Service.dart';
 import '../../services/Favorite_Service.dart';
+import '../../models/watchlist.dart';
+import '../../services/WatchList_Service.dart' hide WatchListItemService;
+import '../../services/WatchListItem_Service.dart';
 
 class DetailFilmScreen extends StatefulWidget {
   final int filmId;
   final int? episodeId;
   final Duration? startPosition;
 
-  const DetailFilmScreen({super.key, required this.filmId, this.startPosition, this.episodeId});
+  const DetailFilmScreen({
+    super.key,
+    required this.filmId,
+    this.startPosition,
+    this.episodeId,
+  });
 
   @override
   State<DetailFilmScreen> createState() => _DetailFilmScreenState();
@@ -65,6 +73,12 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
   int _profileId = 0;
   bool _hasSaved = false;
   Timer? _saveTimer;
+
+  // WatchList
+  List<WatchList> _myWatchLists = [];
+  bool _watchListLoading = false;
+  bool _addingToWatchList = false;
+  final TextEditingController _newListNameController = TextEditingController();
 
   @override
   void initState() {
@@ -113,7 +127,9 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
           );
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text("Không thể thêm vào danh sách yêu thích")),
+            const SnackBar(
+              content: Text("Không thể thêm vào danh sách yêu thích"),
+            ),
           );
         }
       } else {
@@ -152,6 +168,233 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
     setState(() {
       isFavorite = result;
     });
+  }
+
+  Future<void> _loadMyWatchLists() async {
+    if (_profileId == 0) return;
+
+    setState(() {
+      _watchListLoading = true;
+    });
+
+    try {
+      final lists = await WatchListService.getByProfile(_profileId);
+      if (!mounted) return;
+      setState(() {
+        _myWatchLists = lists;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      _showMessage('Không thể tải danh sách của bạn');
+    } finally {
+      if (!mounted) return;
+      setState(() {
+        _watchListLoading = false;
+      });
+    }
+  }
+
+  Future<void> _handleAddToWatchList(WatchList list) async {
+    if (_addingToWatchList) return;
+
+    setState(() {
+      _addingToWatchList = true;
+    });
+
+    try {
+      final ok = await WatchListItemService.addFilmToWatchList(
+        watchListId: list.id,
+        filmId: widget.filmId,
+      );
+
+      if (!mounted) return;
+
+      if (ok) {
+        Navigator.of(context).pop();
+        _showMessage('Đã thêm vào "${list.name}"');
+      } else {
+        _showMessage('Không thể thêm vào danh sách này');
+      }
+    } catch (e) {
+      if (!mounted) return;
+      _showMessage('Không thể thêm vào danh sách này');
+    } finally {
+      if (!mounted) return;
+      setState(() {
+        _addingToWatchList = false;
+      });
+    }
+  }
+
+  Future<void> _showCreateWatchListDialog() async {
+    if (_profileId == 0) {
+      _showMessage('Vui lòng đăng nhập để sử dụng tính năng này');
+      return;
+    }
+
+    _newListNameController.clear();
+
+    await showDialog(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          title: const Text('Tạo danh sách mới'),
+          content: TextField(
+            controller: _newListNameController,
+            decoration: const InputDecoration(hintText: 'Nhập tên danh sách'),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Hủy'),
+            ),
+            TextButton(
+              onPressed: () async {
+                final name = _newListNameController.text.trim();
+                if (name.isEmpty) return;
+
+                Navigator.of(ctx).pop(); // đóng dialog
+
+                try {
+                  // Tạo danh sách
+                  await WatchListService.createWatchList(
+                    profileId: _profileId,
+                    name: name,
+                  );
+
+                  // Reload toàn bộ danh sách
+                  await _loadMyWatchLists();
+
+                  // Tìm lại list mới tạo theo tên (giả sử tên là duy nhất với user)
+                  final created = _myWatchLists.firstWhere(
+                    (x) => x.name == name,
+                    orElse: () => _myWatchLists.first,
+                  );
+
+                  await WatchListItemService.addFilmToWatchList(
+                    watchListId: created.id,
+                    filmId: widget.filmId,
+                  );
+
+                  if (!mounted) return;
+                  Navigator.of(context).pop(); // đóng bottom sheet
+                  _showMessage('Đã tạo và thêm vào "$name"');
+                } catch (e) {
+                  if (!mounted) return;
+                  _showMessage('Không thể tạo danh sách mới');
+                }
+              },
+              child: const Text('Lưu'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _openAddToWatchListSheet() async {
+    if (_profileId == 0) {
+      _showMessage('Vui lòng đăng nhập để sử dụng tính năng này');
+      return;
+    }
+
+    await _loadMyWatchLists();
+    if (!mounted) return;
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF1A1A1A),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      isScrollControlled: true,
+      builder: (_) {
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+          child: SafeArea(
+            top: false,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 40,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 12),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[700],
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                const Text(
+                  'Thêm vào danh sách',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                if (_watchListLoading)
+                  const Padding(
+                    padding: EdgeInsets.all(16),
+                    child: Center(child: CircularProgressIndicator()),
+                  )
+                else ...[
+                  if (_myWatchLists.isEmpty)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 16),
+                      child: Text(
+                        'Bạn chưa có danh sách nào.\nHãy tạo danh sách mới để lưu phim.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: Colors.white70),
+                      ),
+                    )
+                  else
+                    Flexible(
+                      child: ListView.builder(
+                        shrinkWrap: true,
+                        itemCount: _myWatchLists.length,
+                        itemBuilder: (_, index) {
+                          final wl = _myWatchLists[index];
+                          return ListTile(
+                            onTap: () => _handleAddToWatchList(wl),
+                            leading: const Icon(
+                              Icons.playlist_play,
+                              color: Colors.white,
+                            ),
+                            title: Text(
+                              wl.name,
+                              style: const TextStyle(color: Colors.white),
+                            ),
+                            subtitle: wl.createdAt != null
+                                ? Text(
+                                    'Tạo: ${wl.createdAt}',
+                                    style: const TextStyle(
+                                      color: Colors.white54,
+                                      fontSize: 12,
+                                    ),
+                                  )
+                                : null,
+                          );
+                        },
+                      ),
+                    ),
+                ],
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: _showCreateWatchListDialog,
+                    icon: const Icon(Icons.add),
+                    label: const Text('Tạo danh sách mới'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   Future<void> _initData() async {
@@ -222,13 +465,15 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
             if (widget.episodeId != null) {
               // 🔥 Load tập đang xem từ xem tiếp
               _selectedEpisodeId = widget.episodeId!;
-              _selectedEpisodeNumber = _findEpisodeNumberById(widget.episodeId!, data);
+              _selectedEpisodeNumber = _findEpisodeNumberById(
+                widget.episodeId!,
+                data,
+              );
             } else {
               // 🔥 Mặc định tập 1
               _selectedEpisodeId = epId;
               _selectedEpisodeNumber = 1;
             }
-
           });
           return;
         }
@@ -303,7 +548,6 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
     }
     return 1;
   }
-
 
   // ✅ Khởi tạo BetterPlayer phát tiếp ngay vị trí đang xem
   void _initBetterPlayer(String url) {
@@ -414,7 +658,6 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
     final volume = _systemVolume;
 
     if (_betterPlayerController != null) {
-
       // Load tập mới
       await _betterPlayerController!.setupDataSource(
         BetterPlayerDataSource(
@@ -544,7 +787,6 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
 
   @override
   void dispose() {
-    // ✅ Lưu khi thoát
     if (!_hasSaved && _videoDuration > 0 && _watchPosition > 5) {
       _saveWatchProgress();
       _hasSaved = true;
@@ -554,6 +796,7 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
     _youtubeController?.dispose();
     _betterPlayerController?.dispose();
     _commentController.dispose();
+    _newListNameController.dispose(); // 👈 thêm dòng này
     _volumeController.removeListener();
     super.dispose();
   }
@@ -719,15 +962,17 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
                               },
                             ),
                             _buildActionButton(
-                              Icons.bookmark,
-                              "Danh sách",
+                              Icons.add,
+                              "Thêm vào",
                               Colors.white,
-                              () {},
+                              () {
+                                _openAddToWatchListSheet();
+                              },
                             ),
-
                             _buildRatingButton(),
                           ],
                         ),
+
                         const SizedBox(height: 16),
 
                         _buildTabs(),
