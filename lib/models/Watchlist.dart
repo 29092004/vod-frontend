@@ -1,33 +1,37 @@
 class WatchList {
-  final int watchListId;
+  final int id;
   final int profileId;
-  final String createAt;
-  final String watchListName;
+  final String name;
+  final DateTime? createdAt;
 
   WatchList({
-    required this.watchListId,
+    required this.id,
     required this.profileId,
-    required this.createAt,
-    required this.watchListName,
+    required this.name,
+    this.createdAt,
   });
 
   factory WatchList.fromJson(Map<String, dynamic> json) {
+    int parseInt(dynamic v) {
+      if (v == null) return 0;
+      if (v is int) return v;
+      return int.tryParse(v.toString()) ?? 0;
+    }
+
+    DateTime? parseDate(dynamic v) {
+      if (v == null) return null;
+      try {
+        return DateTime.parse(v.toString());
+      } catch (_) {
+        return null;
+      }
+    }
+
     return WatchList(
-      watchListId: json['WatchList_id'] is int
-          ? json['WatchList_id']
-          : int.tryParse(json['WatchList_id'].toString()) ?? 0,
-      profileId: json['Profile_id'] is int
-          ? json['Profile_id']
-          : int.tryParse(json['Profile_id'].toString()) ?? 0,
-      createAt: json['Create_at'] ?? '',
-      watchListName: json['WatchList_name'] ?? '',
+      id: parseInt(json['WatchList_id']),
+      profileId: parseInt(json['Profile_id']),
+      name: json['WatchList_name']?.toString() ?? '',
+      createdAt: parseDate(json['Create_at']),
     );
   }
-
-  Map<String, dynamic> toJson() => {
-    'WatchList_id': watchListId,
-    'Profile_id': profileId,
-    'Create_at': createAt,
-    'WatchList_name': watchListName,
-  };
 }
