@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import '../config/api.dart';
+import '../models/watchlist_movie.dart';
 
 class WatchListItemService {
   /// Thêm 1 phim vào 1 watchlist
@@ -9,10 +10,10 @@ class WatchListItemService {
   }) async {
     await Api.loadToken();
     try {
-      final res = await Api.post(
-        '/watchlistitems',
-        {'watchlist_id': watchListId, 'film_id': filmId},
-      );
+      final res = await Api.post('/watchlistitems', {
+        'watchlist_id': watchListId,
+        'film_id': filmId,
+      });
       final data = res.data;
       return data is Map && data['success'] == true;
     } on DioException catch (e) {
@@ -34,5 +35,30 @@ class WatchListItemService {
     final res = await Api.delete('/watchlistitems/$watchListId/$filmId');
     final data = res.data;
     return data is Map && data['success'] == true;
+  }
+
+  /// Lấy danh sách phim trong 1 watchlist
+  static Future<List<WatchListMovie>> getMoviesOfWatchList(
+    int watchListId,
+  ) async {
+    await Api.loadToken();
+    try {
+      final Response res = await Api.get(
+        '/watchlistitems/watchlist/$watchListId',
+      );
+
+      final body = res.data;
+      if (body is! Map) return [];
+
+      final data = body['data'];
+      if (data is! List) return [];
+
+      return data
+          .where((e) => e is Map)
+          .map((e) => WatchListMovie.fromJson(Map<String, dynamic>.from(e)))
+          .toList();
+    } on DioException {
+      return [];
+    }
   }
 }

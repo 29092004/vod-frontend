@@ -3,10 +3,10 @@ import '../../models/History.dart';
 import '../../services/History_Service.dart';
 import '../detail/Detail_Films.dart';
 
-// 🔥 BẠN ĐANG THIẾU IMPORT NÀY
 import '../../services/auth_service.dart';
 import '../../config/api.dart';
 import 'favorite_movies_screen.dart';
+import 'favorite_watchlists_screen.dart';
 
 class FavoriteScreen extends StatefulWidget {
   const FavoriteScreen({super.key});
@@ -105,8 +105,16 @@ class _FavoriteScreenState extends State<FavoriteScreen> {
           _buildSectionItem(
             icon: Icons.add_rounded,
             title: "Danh sách",
-            onTap: () {},
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const FavoriteWatchListsScreen(),
+                ),
+              );
+            },
           ),
+
           _divider(),
 
           // 🔹 XEM TIẾP
