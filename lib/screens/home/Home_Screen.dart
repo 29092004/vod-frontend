@@ -3,6 +3,7 @@ import 'package:diacritic/diacritic.dart';
 import 'package:flutter/material.dart';
 import 'package:movie_app/services/Film_Service.dart';
 import '../../models/Film_info.dart';
+import '../../services/Country_Service.dart';
 import '../detail/Detail_Films.dart';
 import '../favorite/Favorite_Screen.dart';
 import '../profile/Profile_Screen.dart';
@@ -25,6 +26,10 @@ class _HomeScreenState extends State<HomeScreen> {
 
   List<FilmInfo> _films = [];
   List<FilmInfo> _filteredFilms = [];
+
+  // 🔥 QUỐC GIA LẤY THEO DB
+  List<String> _countryTabs = ["Tất cả"];
+
   bool _isLoading = true;
   String _searchKeyword = "";
   String _selectedCountry = "Tất cả";
@@ -34,7 +39,6 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     _loadFilms();
 
-    // Auto slide banner
     _timer = Timer.periodic(const Duration(seconds: 5), (timer) {
       if (_pageController.hasClients && _films.isNotEmpty) {
         int nextPage = (_currentBanner + 1) % _films.length;
@@ -50,16 +54,26 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _loadFilms() async {
     try {
       final films = await FilmService.getHomeFilms();
+      final dbCountries = await CountryService.getAll();
+
+      final List<String> countryNames =
+      dbCountries.map((c) => c.countryName.trim()).toList();
+
       setState(() {
         _films = films;
         _filteredFilms = films;
+
+        // 🔥 Tabs = tất cả quốc gia (từ DB)
+        _countryTabs = ["Tất cả", ...countryNames];
+
         _isLoading = false;
       });
     } catch (e) {
-      debugPrint(" Lỗi tải phim: $e");
+      print("❌ Lỗi tải phim: $e");
       setState(() => _isLoading = false);
     }
   }
+
 
   @override
   void dispose() {
@@ -69,9 +83,8 @@ class _HomeScreenState extends State<HomeScreen> {
     super.dispose();
   }
 
-  String _normalize(String input) {
-    return removeDiacritics(input.toLowerCase().trim());
-  }
+  String _normalize(String input) =>
+      removeDiacritics(input.toLowerCase().trim());
 
   void _onSearchChanged(String value) {
     setState(() {
@@ -106,10 +119,10 @@ class _HomeScreenState extends State<HomeScreen> {
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _selectedIndex,
         onTap: _onItemTapped,
-        type: BottomNavigationBarType.fixed,
         backgroundColor: Colors.black,
         selectedItemColor: Colors.white,
         unselectedItemColor: Colors.grey,
+        type: BottomNavigationBarType.fixed,
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Trang chủ'),
           BottomNavigationBarItem(icon: Icon(Icons.grid_view), label: 'Tìm kiếm'),
@@ -128,14 +141,17 @@ class _HomeScreenState extends State<HomeScreen> {
 
     if (_films.isEmpty) {
       return const Center(
-          child: Text("Không có dữ liệu phim",
-              style: TextStyle(color: Colors.white, fontSize: 18)));
+        child: Text("Không có dữ liệu phim",
+            style: TextStyle(color: Colors.white, fontSize: 18)),
+      );
     }
 
-    // Lọc theo quốc gia
-    final vietNam = _films.where((f) => f.countryName == "Việt Nam").toList();
-    final han = _films.where((f) => f.countryName == "Hàn Quốc").toList();
-    final trung = _films.where((f) => f.countryName == "Trung Quốc").toList();
+    // 🔥 PHÂN LOẠI QUỐC GIA TỰ ĐỘNG THEO DB
+    final Map<String, List<FilmInfo>> filmByCountry = {};
+    for (var c in _countryTabs) {
+      if (c == "Tất cả") continue;
+      filmByCountry[c] = _films.where((f) => f.countryName == c).toList();
+    }
 
     return SafeArea(
       child: SingleChildScrollView(
@@ -147,22 +163,32 @@ class _HomeScreenState extends State<HomeScreen> {
             _buildBannerSection(_films),
             const SizedBox(height: 15),
 
-            if (_searchKeyword.isNotEmpty)
-              _buildSearchResults()
-            else
-              ...[
-                if (_selectedCountry == "Tất cả") ...[
-                  _buildMovieSection(title: "Top 10 Phim Thịnh Hành", films: _films.take(10).toList()),
-                  _buildMovieSection(title: "Phim Việt Nam", films: vietNam),
-                  _buildMovieSection(title: "Phim Hàn Quốc", films: han),
-                  _buildMovieSection(title: "Phim Trung Quốc", films: trung),
-                ] else if (_selectedCountry == "Việt Nam")
-                  _buildMovieSection(title: "Phim Việt Nam", films: vietNam)
-                else if (_selectedCountry == "Hàn Quốc")
-                    _buildMovieSection(title: "Phim Hàn Quốc", films: han)
-                  else if (_selectedCountry == "Trung Quốc")
-                      _buildMovieSection(title: "Phim Trung Quốc", films: trung),
+            // ================= SEARCH =================
+            if (_searchKeyword.isNotEmpty) _buildSearchResults()
+            else ...[
+              if (_selectedCountry == "Tất cả") ...[
+                _buildMovieSection(
+                  title: "Top 10 Phim Thịnh Hành",
+                  films: _films.take(10).toList(),
+                ),
+
+                // 🔥 TỰ ĐỘNG HIỂN THỊ TỪ DB
+                ...filmByCountry.entries.map((e) {
+                  return _buildMovieSectionWithCount(
+                    title: "Phim ${e.key}",
+                    films: e.value,
+                  );
+                }).toList(),
+              ]
+              else ...[
+                // 🔥 KHI NGƯỜI DÙNG CHỌN QUỐC GIA
+                _buildMovieSection(
+                  title:
+                  "Phim $_selectedCountry (${filmByCountry[_selectedCountry]?.length ?? 0})",
+                  films: filmByCountry[_selectedCountry] ?? [],
+                ),
               ],
+            ],
           ],
         ),
       ),
@@ -180,19 +206,16 @@ class _HomeScreenState extends State<HomeScreen> {
             children: [
               Icon(Icons.movie_creation_outlined, color: Colors.green, size: 28),
               SizedBox(width: 6),
-              Text(
-                "VTC Movie",
-                style: TextStyle(
-                  color: Colors.green,
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
+              Text("VTC Movie",
+                  style: TextStyle(
+                      color: Colors.green,
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold)),
             ],
           ),
           const SizedBox(height: 10),
 
-          // Thanh tìm kiếm
+          // Tìm kiếm
           Container(
             height: 42,
             decoration: BoxDecoration(
@@ -207,11 +230,11 @@ class _HomeScreenState extends State<HomeScreen> {
                 Expanded(
                   child: TextField(
                     controller: _searchController,
-                    style: const TextStyle(color: Colors.white, fontSize: 15),
+                    style: const TextStyle(color: Colors.white),
                     decoration: const InputDecoration(
+                      border: InputBorder.none,
                       hintText: "Tìm kiếm phim...",
                       hintStyle: TextStyle(color: Colors.grey),
-                      border: InputBorder.none,
                     ),
                     onChanged: _onSearchChanged,
                   ),
@@ -221,18 +244,14 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           const SizedBox(height: 10),
 
-          // Thanh chọn quốc gia
+          // 🔥 TAB QUỐC GIA ĐỘNG THEO DB (GIỮ NGUYÊN UI)
           SizedBox(
             height: 36,
             child: ListView(
               scrollDirection: Axis.horizontal,
-              children: [
-                _buildCountryTab("Tất cả"),
-                _buildCountryTab("Việt Nam"),
-                _buildCountryTab("Hàn Quốc"),
-                _buildCountryTab("Trung Quốc"),
-                _buildCountryTab("Mỹ"),
-              ],
+              children: _countryTabs
+                  .map((name) => _buildCountryTab(name))
+                  .toList(),
             ),
           ),
         ],
@@ -242,62 +261,81 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // ======================= SEARCH RESULT ==========================
   Widget _buildSearchResults() {
-    if (_filteredFilms.isEmpty) {
-      return const Center(
-        child: Padding(
-          padding: EdgeInsets.all(20),
-          child: Text("Không có phim phù hợp",
-              style: TextStyle(color: Colors.grey, fontSize: 16)),
-        ),
-      );
-    }
+    final int count = _filteredFilms.length;
 
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 3,
-        crossAxisSpacing: 8,
-        mainAxisSpacing: 12,
-        childAspectRatio: 0.55,
-      ),
-      itemCount: _filteredFilms.length,
-      itemBuilder: (context, index) {
-        final film = _filteredFilms[index];
-        final poster = film.posterMain.isNotEmpty ? film.posterMain : film.posterBanner;
-        return GestureDetector(
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => DetailFilmScreen(filmId: film.filmId),
-              ),
-            );
-          },
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: Image.network(
-                  poster,
-                  height: 150,
-                  width: double.infinity,
-                  fit: BoxFit.cover,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+          child: Text("Kết quả tìm kiếm ($count)",
+              style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold)),
+        ),
+
+        if (_filteredFilms.isEmpty)
+          const Center(
+            child: Padding(
+              padding: EdgeInsets.all(20),
+              child: Text("Không có phim phù hợp",
+                  style: TextStyle(color: Colors.grey, fontSize: 16)),
+            ),
+          )
+        else
+          GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 3,
+              crossAxisSpacing: 8,
+              mainAxisSpacing: 12,
+              childAspectRatio: 0.55,
+            ),
+            itemCount: _filteredFilms.length,
+            itemBuilder: (context, index) {
+              final film = _filteredFilms[index];
+              final poster = film.posterMain.isNotEmpty
+                  ? film.posterMain
+                  : film.posterBanner;
+
+              return GestureDetector(
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) => DetailFilmScreen(filmId: film.filmId)),
+                  );
+                },
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: Image.network(
+                        poster,
+                        height: 150,
+                        width: double.infinity,
+                        fit: BoxFit.cover,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(film.filmName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style:
+                        const TextStyle(color: Colors.white, fontSize: 13)),
+                    Text(film.countryName,
+                        style:
+                        const TextStyle(color: Colors.grey, fontSize: 12)),
+                  ],
                 ),
-              ),
-              const SizedBox(height: 6),
-              Text(film.filmName,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(color: Colors.white, fontSize: 13)),
-              Text(film.countryName,
-                  style: const TextStyle(color: Colors.grey, fontSize: 12)),
-            ],
+              );
+            },
           ),
-        );
-      },
+      ],
     );
   }
 
@@ -312,15 +350,15 @@ class _HomeScreenState extends State<HomeScreen> {
         onPageChanged: (index) => setState(() => _currentBanner = index),
         itemBuilder: (context, index) {
           final film = films[index];
-          final bannerUrl = film.posterBanner.isNotEmpty ? film.posterBanner : film.posterMain;
+          final bannerUrl =
+          film.posterBanner.isNotEmpty ? film.posterBanner : film.posterMain;
 
           return GestureDetector(
             onTap: () {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (_) => DetailFilmScreen(filmId: film.filmId),
-                ),
+                    builder: (_) => DetailFilmScreen(filmId:film.filmId)),
               );
             },
             child: Stack(
@@ -332,7 +370,6 @@ class _HomeScreenState extends State<HomeScreen> {
                   fit: BoxFit.cover,
                 ),
                 Container(
-                  width: double.infinity,
                   height: 250,
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
@@ -371,8 +408,10 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   // ======================= MOVIE SECTION ==========================
-  Widget _buildMovieSection({required String title, required List<FilmInfo> films}) {
+  Widget _buildMovieSection(
+      {required String title, required List<FilmInfo> films}) {
     if (films.isEmpty) return const SizedBox.shrink();
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -389,15 +428,16 @@ class _HomeScreenState extends State<HomeScreen> {
             itemCount: films.length,
             itemBuilder: (context, index) {
               final film = films[index];
-              final mainPoster =
-              film.posterMain.isNotEmpty ? film.posterMain : film.posterBanner;
+              final poster = film.posterMain.isNotEmpty
+                  ? film.posterMain
+                  : film.posterBanner;
+
               return GestureDetector(
                 onTap: () {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (_) => DetailFilmScreen(filmId: film.filmId),
-                    ),
+                        builder: (_) => DetailFilmScreen(filmId:film.filmId)),
                   );
                 },
                 child: Container(
@@ -409,7 +449,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       ClipRRect(
                         borderRadius: BorderRadius.circular(10),
                         child: Image.network(
-                          mainPoster,
+                          poster,
                           height: 200,
                           width: 150,
                           fit: BoxFit.cover,
@@ -425,7 +465,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               fontWeight: FontWeight.w600)),
                       Text(film.countryName,
                           style:
-                          const TextStyle(fontSize: 12, color: Colors.grey)),
+                          const TextStyle(color: Colors.grey, fontSize: 12)),
                     ],
                   ),
                 ),
@@ -435,6 +475,19 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       ],
     );
+  }
+
+  // ======================= MOVIE SECTION WITH COUNT ==========================
+  Widget _buildMovieSectionWithCount({
+    required String title,
+    required List<FilmInfo> films,
+  }) {
+    if (films.isEmpty) return const SizedBox.shrink();
+
+    final bool searching = _searchKeyword.isNotEmpty;
+    final newTitle = searching ? "$title (${films.length})" : title;
+
+    return _buildMovieSection(title: newTitle, films: films);
   }
 
   // ======================= TAB QUỐC GIA ==========================

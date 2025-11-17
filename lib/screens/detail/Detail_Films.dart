@@ -549,20 +549,42 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
     return 1;
   }
 
-  // ✅ Khởi tạo BetterPlayer phát tiếp ngay vị trí đang xem
+  // 🛠 Hàm dựng lại URL 480p / 720p CHUẨN theo cấu trúc thư mục R2
+  String buildQualityUrl(String url, String quality) {
+    try {
+      final uri = Uri.parse(url);
+      final segments = List<String>.from(uri.pathSegments);
+
+      // sửa tên thư mục resolution
+      segments[segments.length - 2] = quality;
+
+      // sửa tên file resolution.m3u8
+      segments[segments.length - 1] = "$quality.m3u8";
+
+      return uri.replace(pathSegments: segments).toString();
+    } catch (e) {
+      debugPrint("❌ buildQualityUrl lỗi: $e");
+      return url;
+    }
+  }
+
+
   void _initBetterPlayer(String url) {
-    // 🔹 Tạo bản đồ độ phân giải chỉ có 720p và 480p
+    // 🔹 Tạo bản đồ độ phân giải CHUẨN
     final qualityUrls = {
-      "720p": url.replaceAll("480p", "720p").replaceAll("480p", "720p"),
-      "480p": url.replaceAll("720p", "480p").replaceAll("720p", "480p"),
+      "720p": buildQualityUrl(url, "720p"),
+      "480p": buildQualityUrl(url, "480p"),
     };
 
-    // ✅ DataSource chính kèm hai độ phân giải
+    // ❗ GIỮ NGUYÊN CODE CŨ CỦA BẠN
     final dataSource = BetterPlayerDataSource(
       BetterPlayerDataSourceType.network,
       url,
       videoFormat: BetterPlayerVideoFormat.hls,
-      resolutions: {"720p": qualityUrls["720p"]!, "480p": qualityUrls["480p"]!},
+      resolutions: {
+        "720p": qualityUrls["720p"]!,
+        "480p": qualityUrls["480p"]!,
+      },
     );
 
     _betterPlayerController = BetterPlayerController(
@@ -579,9 +601,8 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
           DeviceOrientation.landscapeLeft,
           DeviceOrientation.landscapeRight,
         ],
-        deviceOrientationsAfterFullScreen: const [DeviceOrientation.portraitUp],
-
-        // 🎮 Giữ nguyên controls
+        deviceOrientationsAfterFullScreen:
+        const [DeviceOrientation.portraitUp],
         controlsConfiguration: const BetterPlayerControlsConfiguration(
           enableFullscreen: true,
           enableQualities: true,
@@ -600,21 +621,21 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
       betterPlayerDataSource: dataSource,
     );
 
-    // 🟢 Khi video load xong thì seek tới vị trí cũ & phát luôn
+    // ❗ Giữ nguyên toàn bộ event listener của bạn
     _betterPlayerController!.addEventsListener((event) async {
       if (event.betterPlayerEventType == BetterPlayerEventType.initialized) {
         if (widget.startPosition != null &&
             widget.startPosition!.inSeconds > 5) {
-          await _betterPlayerController!.seekTo(widget.startPosition!);
+          await _betterPlayerController!
+              .seekTo(widget.startPosition!);
           await _betterPlayerController!.play();
-          debugPrint("▶️ Tiếp tục phát từ ${widget.startPosition!.inSeconds}s");
         } else {
           await _betterPlayerController!.play();
         }
       }
 
-      // 🔹 Cập nhật tiến độ xem
-      if (event.betterPlayerEventType == BetterPlayerEventType.progress) {
+      if (event.betterPlayerEventType ==
+          BetterPlayerEventType.progress) {
         final pos = event.parameters?['progress'] as Duration?;
         final dur = event.parameters?['duration'] as Duration?;
         if (pos != null && dur != null) {
@@ -623,15 +644,13 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
         }
       }
 
-      // 🔹 Khi phát xong phim
-      if (event.betterPlayerEventType == BetterPlayerEventType.finished) {
-        debugPrint("🎬 Xem hết phim — đặt tiến độ về 0");
+      if (event.betterPlayerEventType ==
+          BetterPlayerEventType.finished) {
         _watchPosition = 0;
         _saveWatchProgress();
       }
     });
 
-    // 💾 Lưu định kỳ mỗi 10 giây
     _saveTimer?.cancel();
     _saveTimer = Timer.periodic(const Duration(seconds: 10), (_) {
       if (_videoDuration > 0 && _watchPosition > 5) {
@@ -652,24 +671,28 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
     final int index = (episodeNumber - 1).clamp(0, urls.length - 1);
     final selectedUrl = urls[index];
 
-    // ⭐ RESET tiến độ khi đổi tập
     _watchPosition = 0;
 
     final volume = _systemVolume;
 
+    // 🔥 Tạo URL đúng chuẩn thay thế hoàn toàn replaceFirst lỗi
+    final quality720 = buildQualityUrl(selectedUrl, "720p");
+    final quality480 = buildQualityUrl(selectedUrl, "480p");
+
     if (_betterPlayerController != null) {
-      // Load tập mới
       await _betterPlayerController!.setupDataSource(
         BetterPlayerDataSource(
           BetterPlayerDataSourceType.network,
-          selectedUrl,
+          quality720, // ÉP 720p mặc định
           videoFormat: BetterPlayerVideoFormat.hls,
+          resolutions: {
+            "720p": quality720,
+            "480p": quality480,
+          },
         ),
       );
 
-      // ⭐ QUAN TRỌNG — RESET VỀ 0 GIÂY
       await _betterPlayerController!.seekTo(Duration.zero);
-
       _betterPlayerController!.setVolume(volume);
     } else {
       _initBetterPlayer(selectedUrl);
@@ -757,7 +780,8 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
         return;
       }
 
-      final profileId = user['Profile_id'] ?? user['id'];
+      final profileId = user['Profile_id'] ?? user['profile_id'] ?? user['id'];
+
 
       final ok = await RatingService.upsertRating(
         profileId: profileId,
