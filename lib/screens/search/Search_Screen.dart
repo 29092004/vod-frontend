@@ -127,88 +127,94 @@ class _SearchScreenState extends State<SearchScreen> {
   }
 
   Widget _buildMainView() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // 🔍 Thanh tìm kiếm
-        Padding(
-          padding: const EdgeInsets.fromLTRB(14, 10, 14, 6),
-          child: Container(
-            height: 42,
-            decoration: BoxDecoration(
-              color: Colors.grey[900],
-              borderRadius: BorderRadius.circular(8),
-            ),
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: Row(
-              children: [
-                const Icon(Icons.search, color: Colors.white70, size: 22),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: TextField(
-                    style: const TextStyle(color: Colors.white, fontSize: 15),
-                    decoration: const InputDecoration(
-                      hintText: "Tìm kiếm phim...",
-                      hintStyle: TextStyle(color: Colors.grey),
-                      border: InputBorder.none,
-                    ),
-                    onChanged: (value) {
-                      _searchKeyword = value;
-                      _applyFilters();
-                    },
-                  ),
+    return SingleChildScrollView(
+      physics: const BouncingScrollPhysics(),
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: 20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // 🔍 Thanh tìm kiếm
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 10, 14, 6),
+              child: Container(
+                height: 42,
+                decoration: BoxDecoration(
+                  color: Colors.grey[900],
+                  borderRadius: BorderRadius.circular(8),
                 ),
-              ],
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                child: Row(
+                  children: [
+                    const Icon(Icons.search, color: Colors.white70, size: 22),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: TextField(
+                        style: const TextStyle(color: Colors.white, fontSize: 15),
+                        decoration: const InputDecoration(
+                          hintText: "Tìm kiếm phim...",
+                          hintStyle: TextStyle(color: Colors.grey),
+                          border: InputBorder.none,
+                        ),
+                        onChanged: (value) {
+                          _searchKeyword = value;
+                          _applyFilters();
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
-          ),
-        ),
 
-        // 🔹 Nút Bộ lọc
-        Padding(
-          padding: const EdgeInsets.only(left: 14, top: 4, bottom: 4),
-          child: ElevatedButton.icon(
-            style: ElevatedButton.styleFrom(
-              backgroundColor:
-              _showFilterPanel ? Colors.green : Colors.grey[850],
-              shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            // 🔹 Nút Bộ lọc
+            Padding(
+              padding: const EdgeInsets.only(left: 14, top: 4, bottom: 4),
+              child: ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor:
+                  _showFilterPanel ? Colors.green : Colors.grey[850],
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8)),
+                  padding:
+                  const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                ),
+                onPressed: () {
+                  setState(() => _showFilterPanel = !_showFilterPanel);
+                },
+                icon: const Icon(Icons.filter_list,
+                    color: Colors.white, size: 18),
+                label: const Text("Bộ lọc",
+                    style: TextStyle(color: Colors.white, fontSize: 14)),
+              ),
             ),
-            onPressed: () {
-              setState(() => _showFilterPanel = !_showFilterPanel);
-            },
-            icon: const Icon(Icons.filter_list, color: Colors.white, size: 18),
-            label: const Text("Bộ lọc",
-                style: TextStyle(color: Colors.white, fontSize: 14)),
-          ),
-        ),
 
-        // 🔽 Bộ lọc xổ xuống
-        if (_showFilterPanel)
-          SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 14),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildFilterSection(
-                    "Loại phim", ["Toàn bộ loại phim", "Phim Bộ", "Phim Lẻ"]),
-                _buildFilterSection("Khu vực", _getCountries()),
-                _buildGenreSection(), // ✅ Thể loại rút gọn + popup
-                _buildFilterSection("Thập niên", _getYears()),
-                _buildFilterSection("Sắp xếp", ["Độ hot", "Mới nhất"]),
-                const Divider(color: Colors.grey, thickness: 0.2),
-              ],
+            // 🔽 Bộ lọc xổ xuống
+            if (_showFilterPanel)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 14),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildFilterSection(
+                        "Loại phim", ["Toàn bộ loại phim", "Phim Bộ", "Phim Lẻ"]),
+                    _buildFilterSection("Khu vực", _getCountries()),
+                    _buildGenreSection(),
+                    _buildFilterSection("Thập niên", _getYears()),
+                    _buildFilterSection("Sắp xếp", ["Độ hot", "Mới nhất"]),
+                    const Divider(color: Colors.grey),
+                  ],
+                ),
+              ),
+
+            // 🔹 Kết quả tìm kiếm + Grid phim
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              child: _buildMovieGrid(_filteredFilms),
             ),
-          ),
-
-        // 🔹 Danh sách phim
-        Expanded(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            child: _buildMovieGrid(_filteredFilms),
-          ),
+          ],
         ),
-      ],
+      ),
     );
   }
 
@@ -424,8 +430,14 @@ class _SearchScreenState extends State<SearchScreen> {
     );
   }
 
-  // ✅ Grid phim
   Widget _buildMovieGrid(List<FilmInfo> films) {
+    final int count = films.length;
+
+    // ❗ Điều kiện: chỉ hiển thị tiêu đề khi người dùng thực sự lọc hoặc tìm kiếm
+    final bool shouldShowTitle =
+        _searchKeyword.isNotEmpty || selectedFilters.values.any((s) => s.isNotEmpty);
+
+    // ❗ Nếu không có phim -> chỉ hiện thông báo và kết thúc
     if (films.isEmpty) {
       return const Center(
         child: Padding(
@@ -438,59 +450,81 @@ class _SearchScreenState extends State<SearchScreen> {
       );
     }
 
-    return GridView.builder(
-      physics: const NeverScrollableScrollPhysics(),
-      shrinkWrap: true,
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 3,
-        crossAxisSpacing: 8,
-        mainAxisSpacing: 12,
-        childAspectRatio: 0.55,
-      ),
-      itemCount: films.length,
-      itemBuilder: (context, index) {
-        final film = films[index];
-        return GestureDetector(
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) =>
-                    DetailFilmScreen(
-                      filmId: film.filmId, // ✅ Truyền ID qua
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // 🌟 Chỉ hiển thị tiêu đề khi có tìm kiếm hoặc filter
+        if (shouldShowTitle)
+          Padding(
+            padding: const EdgeInsets.only(left: 4, bottom: 10),
+            child: Text(
+              "Kết quả tìm kiếm ($count)",
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+
+        // 🌟 GIỮ NGUYÊN CODE CŨ (KHÔNG XOÁ)
+        GridView.builder(
+          physics: const NeverScrollableScrollPhysics(),
+          shrinkWrap: true,
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 3,
+            crossAxisSpacing: 8,
+            mainAxisSpacing: 12,
+            childAspectRatio: 0.55,
+          ),
+          itemCount: films.length,
+          itemBuilder: (context, index) {
+            final film = films[index];
+            return GestureDetector(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (context) =>
+                          DetailFilmScreen(filmId: film.filmId)),
+                );
+              },
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: Image.network(
+                      film.posterMain.isNotEmpty
+                          ? film.posterMain
+                          : "https://via.placeholder.com/150",
+                      height: 150,
+                      width: double.infinity,
+                      fit: BoxFit.cover,
                     ),
+                  ),
+                  const SizedBox(height: 6),
+
+                  // ❌ Ẩn dòng quốc gia — nhưng vẫn giữ code
+                  // Text(
+                  //   film.countryName,
+                  //   style: const TextStyle(color: Colors.grey, fontSize: 12),
+                  // ),
+                  const SizedBox.shrink(),
+
+                  // ✅ Giữ lại tên phim
+                  Text(
+                    film.filmName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(color: Colors.white, fontSize: 13),
+                  ),
+                ],
               ),
             );
           },
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: Image.network(
-                  film.posterMain.isNotEmpty
-                      ? film.posterMain
-                      : "https://via.placeholder.com/150",
-                  height: 150,
-                  width: double.infinity,
-                  fit: BoxFit.cover,
-                ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                film.countryName,
-                style: const TextStyle(color: Colors.grey, fontSize: 12),
-              ),
-              Text(
-                film.filmName,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(color: Colors.white, fontSize: 13),
-              ),
-            ],
-          ),
-        );
-      },
+        ),
+      ],
     );
   }
 }

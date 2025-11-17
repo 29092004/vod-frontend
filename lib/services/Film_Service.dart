@@ -5,13 +5,31 @@ import '../models/Film_info.dart';
 class FilmService {
   static const String _endpoint = "/films";
 
-  /// 🧩 Hàm tiện ích — trích xuất phần data từ response
+  /// ============================================================
+  /// 🔥 FIX QUAN TRỌNG: Trích xuất đúng mảng phim từ API
+  /// ============================================================
   static dynamic _extractData(Response response) {
     final res = response.data;
+
+    // TH1: API trả thẳng List
+    if (res is List) return res;
+
+    // TH2: API trả Map
     if (res is Map<String, dynamic>) {
+      // Ưu tiên key "data"
       if (res.containsKey('data')) return res['data'];
-      if (res.containsKey('result')) return res['result'];
+
+      // Key phổ biến
+      for (final key in ["result", "results", "films", "items", "list"]) {
+        if (res.containsKey(key)) return res[key];
+      }
+
+      // TH3: API trả object film (không phải list)
+      // → dành cho chi tiết phim
+      return res;
     }
+
+    // fallback
     return res;
   }
 
@@ -24,7 +42,8 @@ class FilmService {
       final data = _extractData(response);
 
       return List<FilmInfo>.from(
-          (data as List).map((e) => FilmInfo.fromJson(e)));
+        (data as List).map((e) => FilmInfo.fromJson(e)),
+      );
     } catch (e) {
       throw Exception("❌ Lỗi khi tải danh sách phim: $e");
     }
@@ -49,21 +68,10 @@ class FilmService {
   static Future<FilmInfo> getFilmDetail(int id) async {
     try {
       final response = await Api.get("$_endpoint/detail/$id");
-
       final data = _extractData(response);
-      if (data == null) {
-        throw Exception("Không có dữ liệu chi tiết cho phim ID $id");
-      }
 
-      // 🧩 Log ra thông tin phim & số lượng diễn viên để kiểm tra
-      if (data is Map<String, dynamic>) {
-        final filmName = data['Film_name'] ?? '(Không rõ)';
-        final actorCount =
-        (data['Actors'] is List) ? (data['Actors'] as List).length : 0;
-        print("🎬 [Film Detail] $filmName — có $actorCount diễn viên");
-      }
+      if (data == null) throw Exception("Không có dữ liệu phim");
 
-      // ✅ Parse về model FilmInfo (đã hỗ trợ Actors là mảng JSON)
       return FilmInfo.fromJson(data);
     } catch (e) {
       throw Exception("❌ Lỗi khi tải chi tiết phim ID $id: $e");
@@ -71,38 +79,45 @@ class FilmService {
   }
 
   // ---------------------------------------------------
-  // 🔹 Lấy danh sách phim cho trang Home
+  // 🔹 Lấy phim cho trang Home
   // ---------------------------------------------------
   static Future<List<FilmInfo>> getHomeFilms() async {
     try {
       final response = await Api.get("$_endpoint/home");
       final data = _extractData(response);
 
+      print("🔥 DEBUG — HomeFilms length: ${(data as List).length}");
+
       return List<FilmInfo>.from(
-          (data as List).map((e) => FilmInfo.fromJson(e)));
+        data.map((e) => FilmInfo.fromJson(e)),
+      );
     } catch (e) {
       throw Exception("❌ Lỗi khi tải dữ liệu trang Home: $e");
     }
   }
 
   // ---------------------------------------------------
-  // 🔹 Tìm kiếm phim theo từ khóa
+  // 🔹 Tìm kiếm phim
   // ---------------------------------------------------
   static Future<List<FilmInfo>> searchFilms(String keyword) async {
     try {
-      final response =
-      await Api.get("$_endpoint/search", query: {'keyword': keyword});
+      final response = await Api.get(
+        "$_endpoint/search",
+        query: {'keyword': keyword},
+      );
+
       final data = _extractData(response);
 
       return List<FilmInfo>.from(
-          (data as List).map((e) => FilmInfo.fromJson(e)));
+        (data as List).map((e) => FilmInfo.fromJson(e)),
+      );
     } catch (e) {
       throw Exception("❌ Lỗi khi tìm kiếm phim: $e");
     }
   }
 
   // ---------------------------------------------------
-  // 🔹 Trang "Kho phim" — lấy toàn bộ danh sách có chi tiết
+  // 🔹 Lấy toàn bộ phim cho Kho phim
   // ---------------------------------------------------
   static Future<List<FilmInfo>> getSearchFilms() async {
     try {
@@ -110,36 +125,36 @@ class FilmService {
       final data = _extractData(response);
 
       return List<FilmInfo>.from(
-          (data as List).map((e) => FilmInfo.fromJson(e)));
+        (data as List).map((e) => FilmInfo.fromJson(e)),
+      );
     } catch (e) {
-      throw Exception("❌ Lỗi khi tải danh sách phim cho Kho phim: $e");
+      throw Exception("❌ Lỗi khi tải danh sách phim kho phim: $e");
     }
   }
 
-// ---------------------------------------------------
-// 🔹 Lấy danh sách phim đề xuất cùng quốc gia & thể loại
-// ---------------------------------------------------
-  static Future<List<FilmInfo>> getRecommendations(String countryName,
-      int excludeId, {String? genres}) async {
+  // ---------------------------------------------------
+  // 🔹 Phim đề xuất
+  // ---------------------------------------------------
+  static Future<List<FilmInfo>> getRecommendations(
+      String countryName, int excludeId,
+      {String? genres}) async {
     try {
-      // ✅ Tạo query parameters
-      final Map<String, dynamic> queryParams = {
+      final query = {
         'countryName': countryName,
         'excludeFilmId': excludeId.toString(),
       };
 
-      // ✅ Nếu có danh sách thể loại thì thêm vào query (từ _film.genres)
       if (genres != null && genres.isNotEmpty) {
-        queryParams['genres'] = genres;
+        query['genres'] = genres;
       }
 
-      // ✅ Gọi API
       final response = await Api.get(
         "$_endpoint/recommendations",
-        query: queryParams,
+        query: query,
       );
 
       final data = _extractData(response);
+
       return List<FilmInfo>.from(
         (data as List).map((e) => FilmInfo.fromJson(e)),
       );
