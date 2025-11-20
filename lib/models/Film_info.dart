@@ -12,13 +12,16 @@ class FilmInfo {
   final int totalEpisode;
   final String trailerUrl;
   final String filmStatus;
+
   final bool isSeries;
+  final bool isPremiumOnly;   // ⭐ THÊM DÒNG NÀY
+
   final String genres;
   final String posterMain;
   final String posterBanner;
-  final List<dynamic> actors; // ✅ danh sách diễn viên
+  final List<dynamic> actors;
   final String? sources;
-  final List<dynamic>? seasons; // ✅ thêm danh sách mùa (Season + Episode)
+  final List<dynamic>? seasons;
 
   FilmInfo({
     required this.filmId,
@@ -35,12 +38,13 @@ class FilmInfo {
     required this.trailerUrl,
     required this.filmStatus,
     required this.isSeries,
+    required this.isPremiumOnly,   // ⭐ THÊM
     required this.genres,
     required this.posterMain,
     required this.posterBanner,
     required this.actors,
     this.sources,
-    this.seasons, // ✅ thêm vào constructor
+    this.seasons,
   });
 
   factory FilmInfo.fromJson(Map<String, dynamic> json) {
@@ -58,13 +62,19 @@ class FilmInfo {
       totalEpisode: json['total_episode'] ?? 0,
       trailerUrl: json['trailer_url'] ?? '',
       filmStatus: json['film_status'] ?? '',
+
       isSeries: json['is_series'] == 1 || json['is_series'] == true,
+
+      /// ⭐ Parse premium
+      isPremiumOnly:
+      json['is_premium_only'] == 1 || json['is_premium_only'] == true,
+
       genres: json['genres'] ?? '',
       posterMain: json['poster_main'] ?? '',
       posterBanner: json['poster_banner'] ?? '',
       actors: (json['Actors'] is List) ? json['Actors'] : [],
       sources: json['Sources'],
-      seasons: (json['Seasons'] is List) ? json['Seasons'] : [], // ✅ thêm parse
+      seasons: (json['Seasons'] is List) ? json['Seasons'] : [],
     );
   }
 
@@ -83,11 +93,12 @@ class FilmInfo {
     'trailer_url': trailerUrl,
     'film_status': filmStatus,
     'is_series': isSeries,
+    'is_premium_only': isPremiumOnly ? 1 : 0, // ⭐ XUẤT RA JSON
     'genres': genres,
     'poster_main': posterMain,
     'poster_banner': posterBanner,
     'Actors': actors,
     'Sources': sources,
-    'Seasons': seasons, // ✅ xuất ra JSON luôn
+    'Seasons': seasons,
   };
 }
