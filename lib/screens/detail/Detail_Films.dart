@@ -17,6 +17,8 @@ import '../../services/Favorite_Service.dart';
 import '../../models/watchlist.dart';
 import '../../services/WatchList_Service.dart' hide WatchListItemService;
 import '../../services/WatchListItem_Service.dart';
+import '../../utils/text_censor.dart';
+import 'Actor_Overlay.dart';
 import '../profile/Profile_Screen.dart';
 
 class DetailFilmScreen extends StatefulWidget {
@@ -1480,56 +1482,70 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
           final avatar = actor['Actor_avatar'] ?? "";
           final role = actor['Character_name'] ?? "";
 
-          return Container(
-            width: 110,
-            margin: const EdgeInsets.symmetric(horizontal: 6),
-            child: Column(
-              children: [
-                CircleAvatar(
-                  radius: 40,
-                  backgroundImage: avatar.isNotEmpty
-                      ? NetworkImage(
-                          avatar.startsWith('http')
-                              ? avatar
-                              : '${Api.baseHost}${avatar.startsWith('/') ? avatar : '/$avatar'}',
-                        )
-                      : const NetworkImage(
-                          "https://cdn.vtc.vn/avatar_default.png",
-                        ),
-                ),
-
-                const SizedBox(height: 8),
-                Text(
-                  name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
+          return GestureDetector(
+            onTap: () => _openActorOverlay(actor),   // 👈 THÊM DÒNG NÀY
+            child: Container(
+              width: 110,
+              margin: const EdgeInsets.symmetric(horizontal: 6),
+              child: Column(
+                children: [
+                  CircleAvatar(
+                    radius: 40,
+                    backgroundImage: avatar.isNotEmpty
+                        ? NetworkImage(
+                      avatar.startsWith('http')
+                          ? avatar
+                          : '${Api.baseHost}${avatar.startsWith('/') ? avatar : '/$avatar'}',
+                    )
+                        : const NetworkImage(
+                      "https://cdn.vtc.vn/avatar_default.png",
+                    ),
                   ),
-                ),
-                if (role.isNotEmpty)
+
+                  const SizedBox(height: 8),
                   Text(
-                    role,
+                    name,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     textAlign: TextAlign.center,
                     style: const TextStyle(
-                      color: Colors.amberAccent,
-                      fontSize: 12,
-                      fontStyle: FontStyle.italic,
-                      fontWeight: FontWeight.w600,
+                      color: Colors.white,
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
-              ],
+                  if (role.isNotEmpty)
+                    Text(
+                      role,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        color: Colors.amberAccent,
+                        fontSize: 12,
+                        fontStyle: FontStyle.italic,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                ],
+              ),
             ),
           );
         },
       ),
     );
   }
+
+  void _openActorOverlay(Map<String, dynamic> actor) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => ActorOverlay(actor: actor),
+    );
+  }
+
+
 
   Widget _buildCommentSection() {
     if (_loadingComments) {
@@ -1620,12 +1636,13 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    c['Content'] ?? "",
+                    censorBadWords(c['Content'] ?? ""),
                     style: TextStyle(
                       color: Colors.white70,
                       fontSize: depth == 0 ? 12 : 11.5,
                     ),
                   ),
+
 
                   if (c['Created_at'] != null)
                     Builder(
