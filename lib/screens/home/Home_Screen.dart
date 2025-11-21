@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:movie_app/services/Film_Service.dart';
 import '../../models/Film_info.dart';
 import '../../services/Country_Service.dart';
+
 import '../detail/Detail_Films.dart';
 import '../favorite/Favorite_Screen.dart';
 import '../profile/Profile_Screen.dart';
@@ -27,7 +28,7 @@ class _HomeScreenState extends State<HomeScreen> {
   List<FilmInfo> _films = [];
   List<FilmInfo> _filteredFilms = [];
 
-  // 🔥 QUỐC GIA LẤY THEO DB
+
   List<String> _countryTabs = ["Tất cả"];
 
   bool _isLoading = true;
@@ -38,6 +39,7 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _loadFilms();
+
 
     _timer = Timer.periodic(const Duration(seconds: 5), (timer) {
       if (_pageController.hasClients && _films.isNotEmpty) {
@@ -51,6 +53,7 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
+  // ======================= LOAD FILM + COUNTRY ==========================
   Future<void> _loadFilms() async {
     try {
       final films = await FilmService.getHomeFilms();
@@ -63,9 +66,7 @@ class _HomeScreenState extends State<HomeScreen> {
         _films = films;
         _filteredFilms = films;
 
-        // 🔥 Tabs = tất cả quốc gia (từ DB)
         _countryTabs = ["Tất cả", ...countryNames];
-
         _isLoading = false;
       });
     } catch (e) {
@@ -73,6 +74,7 @@ class _HomeScreenState extends State<HomeScreen> {
       setState(() => _isLoading = false);
     }
   }
+
 
 
   @override
@@ -146,7 +148,6 @@ class _HomeScreenState extends State<HomeScreen> {
       );
     }
 
-    // 🔥 PHÂN LOẠI QUỐC GIA TỰ ĐỘNG THEO DB
     final Map<String, List<FilmInfo>> filmByCountry = {};
     for (var c in _countryTabs) {
       if (c == "Tất cả") continue;
@@ -162,9 +163,9 @@ class _HomeScreenState extends State<HomeScreen> {
             const SizedBox(height: 8),
             _buildBannerSection(_films),
             const SizedBox(height: 15),
-
             // ================= SEARCH =================
-            if (_searchKeyword.isNotEmpty) _buildSearchResults()
+            if (_searchKeyword.isNotEmpty)
+              _buildSearchResults()
             else ...[
               if (_selectedCountry == "Tất cả") ...[
                 _buildMovieSection(
@@ -172,16 +173,13 @@ class _HomeScreenState extends State<HomeScreen> {
                   films: _films.take(10).toList(),
                 ),
 
-                // 🔥 TỰ ĐỘNG HIỂN THỊ TỪ DB
                 ...filmByCountry.entries.map((e) {
                   return _buildMovieSectionWithCount(
                     title: "Phim ${e.key}",
                     films: e.value,
                   );
                 }).toList(),
-              ]
-              else ...[
-                // 🔥 KHI NGƯỜI DÙNG CHỌN QUỐC GIA
+              ] else ...[
                 _buildMovieSection(
                   title:
                   "Phim $_selectedCountry (${filmByCountry[_selectedCountry]?.length ?? 0})",
@@ -215,7 +213,6 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           const SizedBox(height: 10),
 
-          // Tìm kiếm
           Container(
             height: 42,
             decoration: BoxDecoration(
@@ -244,7 +241,6 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           const SizedBox(height: 10),
 
-          // 🔥 TAB QUỐC GIA ĐỘNG THEO DB (GIỮ NGUYÊN UI)
           SizedBox(
             height: 36,
             child: ListView(
@@ -478,10 +474,8 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   // ======================= MOVIE SECTION WITH COUNT ==========================
-  Widget _buildMovieSectionWithCount({
-    required String title,
-    required List<FilmInfo> films,
-  }) {
+  Widget _buildMovieSectionWithCount(
+      {required String title, required List<FilmInfo> films}) {
     if (films.isEmpty) return const SizedBox.shrink();
 
     final bool searching = _searchKeyword.isNotEmpty;
@@ -490,7 +484,7 @@ class _HomeScreenState extends State<HomeScreen> {
     return _buildMovieSection(title: newTitle, films: films);
   }
 
-  // ======================= TAB QUỐC GIA ==========================
+  // ======================= COUNTRY TAB ==========================
   Widget _buildCountryTab(String label) {
     final bool selected = _selectedCountry == label;
     return GestureDetector(
