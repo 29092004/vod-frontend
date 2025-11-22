@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:better_player_plus/better_player_plus.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:video_player/video_player.dart';
 import 'package:youtube_player_flutter/youtube_player_flutter.dart';
 import 'package:volume_controller/volume_controller.dart';
@@ -78,6 +79,9 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
   int _profileId = 0;
   bool _hasSaved = false;
   Timer? _saveTimer;
+  int _localViews = 0;
+  bool _viewCounted = false;
+
 
   // WatchList
   List<WatchList> _myWatchLists = [];
@@ -453,6 +457,7 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
   }
 
   Future<void> _initData() async {
+    await _loadLocalViews();
     await Api.loadToken();
     //  LẤY PROFILE ID TỰ ĐỘNG TỪ JWT
     final me = await AuthService.getMe();
@@ -481,10 +486,41 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
     if (widget.episodeId != null) {
       _selectedEpisodeId = widget.episodeId!;
     }
-
     await _loadAverageScore();
     await _loadComments();
+    await _loadViews();
   }
+
+  Future<void> _loadLocalViews() async {
+    final prefs = await SharedPreferences.getInstance();
+    final key = "views_${widget.filmId}_${_selectedEpisodeId}";
+
+    setState(() {
+      _localViews = prefs.getInt(key) ?? 0;
+    });
+  }
+
+  Future<void> _increaseLocalViews() async {
+    final prefs = await SharedPreferences.getInstance();
+    final key = "views_${widget.filmId}_${_selectedEpisodeId}";
+    int old = prefs.getInt(key) ?? 0;
+
+    await prefs.setInt(key, old + 1);
+
+    setState(() {
+      _localViews = old + 1;
+    });
+  }
+  Future<void> _loadViews() async {
+    final prefs = await SharedPreferences.getInstance();
+    final key = "views_${widget.filmId}_${_selectedEpisodeId}";
+    setState(() {
+      _localViews = prefs.getInt(key) ?? 0;
+    });
+  }
+
+
+
 
   //  PHIM
   Future<void> _loadFilm() async {
@@ -495,6 +531,8 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
         _film = data;
         _isFilmPremium = data.isPremiumOnly;
       });
+
+
       if (_isFilmPremium && !_isPremiumUser) {
         Future.delayed(const Duration(milliseconds: 300), () {
           if (mounted) _showPremiumPopup();
@@ -650,7 +688,19 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
   }
 
 
-  void _initBetterPlayer(String url) {
+  void _initBetterPlayer(String url) async {
+
+    // 🛑 FIX: Hủy controller cũ trước khi tạo controller mới
+    if (_betterPlayerController != null) {
+      try {
+        await _betterPlayerController!.pause();
+      } catch (_) {}
+      try {
+       _betterPlayerController!.dispose();
+      } catch (_) {}
+      _betterPlayerController = null;
+    }
+
     // 🔹 Tạo bản đồ độ phân giải CHUẨN
     final qualityUrls = {
       "720p": buildQualityUrl(url, "720p"),
@@ -719,11 +769,18 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
       if (event.betterPlayerEventType == BetterPlayerEventType.progress) {
         final pos = event.parameters?['progress'] as Duration?;
         final dur = event.parameters?['duration'] as Duration?;
+
         if (pos != null && dur != null) {
           _watchPosition = pos.inSeconds;
           _videoDuration = dur.inSeconds;
+
+          if (!_viewCounted && _watchPosition >= 30) {
+            _viewCounted = true;
+            _increaseLocalViews();
+          }
         }
       }
+
 
       // Khi phát xong phim
       if (event.betterPlayerEventType == BetterPlayerEventType.finished) {
@@ -764,6 +821,17 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
     final quality480 = buildQualityUrl(selectedUrl, "480p");
 
     if (_betterPlayerController != null) {
+      try {
+        await _betterPlayerController!.pause();
+      } catch (_) {}
+      try {
+        _betterPlayerController!.dispose();
+      } catch (_) {}
+      _betterPlayerController = null;
+    }
+
+
+    if (_betterPlayerController != null) {
       await _betterPlayerController!.setupDataSource(
         BetterPlayerDataSource(
           BetterPlayerDataSourceType.network,
@@ -787,7 +855,10 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
       _selectedEpisodeId = episodeId;
       _selectedEpisodeNumber = episodeNumber;
       _isVideoReady = true;
+      _viewCounted = false;
+
     });
+    await _loadLocalViews();
   }
 
   // Hàm lưu tiến độ xem
@@ -983,9 +1054,9 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
                               size: 16,
                             ),
                             const SizedBox(width: 4),
-                            const Text(
-                              "91.019 lượt xem",
-                              style: TextStyle(
+                            Text(
+                              "$_localViews lượt xem",
+                              style: const TextStyle(
                                 color: Colors.white70,
                                 fontSize: 13,
                               ),
@@ -1217,22 +1288,7 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
   }
 
 
-  Widget _buildTrailerOrPoster() {
-    if (_youtubeController != null) {
-      return YoutubePlayer(
-        controller: _youtubeController!,
-        showVideoProgressIndicator: true,
-        progressIndicatorColor: Colors.greenAccent,
-      );
-    }
-    if (_videoController != null && _isVideoReady) {
-      return VideoPlayer(_videoController!);
-    }
-    return Image.network(
-      _film!.posterMain.isNotEmpty ? _film!.posterMain : '',
-      fit: BoxFit.cover,
-    );
-  }
+
 
   Widget _buildRatingButton() {
     return GestureDetector(
