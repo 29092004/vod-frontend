@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:movie_app/services/Film_Service.dart';
 import '../../models/Film_info.dart';
 import '../../services/Country_Service.dart';
-
 import '../detail/Detail_Films.dart';
 import '../favorite/Favorite_Screen.dart';
 import '../profile/Profile_Screen.dart';
@@ -28,7 +27,6 @@ class _HomeScreenState extends State<HomeScreen> {
   List<FilmInfo> _films = [];
   List<FilmInfo> _filteredFilms = [];
 
-
   List<String> _countryTabs = ["Tất cả"];
 
   bool _isLoading = true;
@@ -39,7 +37,6 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _loadFilms();
-
 
     _timer = Timer.periodic(const Duration(seconds: 5), (timer) {
       if (_pageController.hasClients && _films.isNotEmpty) {
@@ -56,7 +53,7 @@ class _HomeScreenState extends State<HomeScreen> {
   // ======================= LOAD FILM + COUNTRY ==========================
   Future<void> _loadFilms() async {
     try {
-      final films = await FilmService.getHomeFilms();
+      final films = await FilmService.getSearchFilms();
       final dbCountries = await CountryService.getAll();
 
       final List<String> countryNames =
@@ -65,17 +62,13 @@ class _HomeScreenState extends State<HomeScreen> {
       setState(() {
         _films = films;
         _filteredFilms = films;
-
         _countryTabs = ["Tất cả", ...countryNames];
         _isLoading = false;
       });
     } catch (e) {
-      print("❌ Lỗi tải phim: $e");
       setState(() => _isLoading = false);
     }
   }
-
-
 
   @override
   void dispose() {
@@ -85,6 +78,7 @@ class _HomeScreenState extends State<HomeScreen> {
     super.dispose();
   }
 
+  // Bỏ dấu + lowercase
   String _normalize(String input) =>
       removeDiacritics(input.toLowerCase().trim());
 
@@ -94,11 +88,10 @@ class _HomeScreenState extends State<HomeScreen> {
       if (value.isEmpty) {
         _filteredFilms = List.from(_films);
       } else {
-        final keyword = _normalize(value);
-        _filteredFilms = _films.where((film) {
-          final name = _normalize(film.filmName);
-          final original = _normalize(film.originalName);
-          return name.contains(keyword) || original.contains(keyword);
+        final key = _normalize(value);
+        _filteredFilms = _films.where((f) {
+          return _normalize(f.filmName).contains(key) ||
+              _normalize(f.originalName).contains(key);
         }).toList();
       }
     });
@@ -143,15 +136,24 @@ class _HomeScreenState extends State<HomeScreen> {
 
     if (_films.isEmpty) {
       return const Center(
-        child: Text("Không có dữ liệu phim",
-            style: TextStyle(color: Colors.white, fontSize: 18)),
+        child: Text(
+          "Không có dữ liệu phim",
+          style: TextStyle(color: Colors.white, fontSize: 18),
+        ),
       );
     }
 
+    // Lọc theo quốc gia (normalize để không lỗi dấu)
     final Map<String, List<FilmInfo>> filmByCountry = {};
     for (var c in _countryTabs) {
       if (c == "Tất cả") continue;
-      filmByCountry[c] = _films.where((f) => f.countryName == c).toList();
+
+      final norm = _normalize(c);
+      final list = _films.where((f) {
+        return _normalize(f.countryName) == norm;
+      }).toList();
+
+      filmByCountry[c] = list;
     }
 
     return SafeArea(
@@ -161,9 +163,11 @@ class _HomeScreenState extends State<HomeScreen> {
           children: [
             _buildHeader(),
             const SizedBox(height: 8),
+
             _buildBannerSection(_films),
             const SizedBox(height: 15),
-            // ================= SEARCH =================
+
+            /// Nếu đang search
             if (_searchKeyword.isNotEmpty)
               _buildSearchResults()
             else ...[
@@ -174,18 +178,23 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
 
                 ...filmByCountry.entries.map((e) {
-                  return _buildMovieSectionWithCount(
+                  return _buildMovieSection(
                     title: "Phim ${e.key}",
                     films: e.value,
                   );
                 }).toList(),
-              ] else ...[
-                _buildMovieSection(
-                  title:
-                  "Phim $_selectedCountry (${filmByCountry[_selectedCountry]?.length ?? 0})",
-                  films: filmByCountry[_selectedCountry] ?? [],
+              ]
+              else ...[
+                Builder(
+                  builder: (_) {
+                    final list = filmByCountry[_selectedCountry] ?? [];
+                    return _buildMovieSection(
+                      title: "Phim $_selectedCountry (${list.length})",
+                      films: list,
+                    );
+                  },
                 ),
-              ],
+              ]
             ],
           ],
         ),
@@ -213,6 +222,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           const SizedBox(height: 10),
 
+          // Search box
           Container(
             height: 42,
             decoration: BoxDecoration(
@@ -228,26 +238,27 @@ class _HomeScreenState extends State<HomeScreen> {
                   child: TextField(
                     controller: _searchController,
                     style: const TextStyle(color: Colors.white),
+                    onChanged: _onSearchChanged,
                     decoration: const InputDecoration(
                       border: InputBorder.none,
                       hintText: "Tìm kiếm phim...",
                       hintStyle: TextStyle(color: Colors.grey),
                     ),
-                    onChanged: _onSearchChanged,
                   ),
                 ),
               ],
             ),
           ),
+
           const SizedBox(height: 10),
 
+          // Country Tabs
           SizedBox(
             height: 36,
             child: ListView(
               scrollDirection: Axis.horizontal,
-              children: _countryTabs
-                  .map((name) => _buildCountryTab(name))
-                  .toList(),
+              children:
+              _countryTabs.map((name) => _buildCountryTab(name)).toList(),
             ),
           ),
         ],
@@ -283,19 +294,18 @@ class _HomeScreenState extends State<HomeScreen> {
           GridView.builder(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            padding: const EdgeInsets.all(10),
             gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: 3,
-              crossAxisSpacing: 8,
-              mainAxisSpacing: 12,
               childAspectRatio: 0.55,
+              mainAxisSpacing: 12,
+              crossAxisSpacing: 8,
             ),
             itemCount: _filteredFilms.length,
             itemBuilder: (context, index) {
               final film = _filteredFilms[index];
-              final poster = film.posterMain.isNotEmpty
-                  ? film.posterMain
-                  : film.posterBanner;
+              final poster =
+              film.posterMain.isNotEmpty ? film.posterMain : film.posterBanner;
 
               return GestureDetector(
                 onTap: () {
@@ -318,11 +328,12 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                     ),
                     const SizedBox(height: 6),
-                    Text(film.filmName,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style:
-                        const TextStyle(color: Colors.white, fontSize: 13)),
+                    Text(
+                      film.filmName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(color: Colors.white, fontSize: 13),
+                    ),
                     Text(film.countryName,
                         style:
                         const TextStyle(color: Colors.grey, fontSize: 12)),
@@ -354,7 +365,7 @@ class _HomeScreenState extends State<HomeScreen> {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                    builder: (_) => DetailFilmScreen(filmId:film.filmId)),
+                    builder: (_) => DetailFilmScreen(filmId: film.filmId)),
               );
             },
             child: Stack(
@@ -369,13 +380,13 @@ class _HomeScreenState extends State<HomeScreen> {
                   height: 250,
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
+                      begin: Alignment.bottomCenter,
+                      end: Alignment.topCenter,
                       colors: [
                         Colors.black.withOpacity(0.6),
                         Colors.transparent,
-                        Colors.black.withOpacity(0.6)
+                        Colors.black.withOpacity(0.6),
                       ],
-                      begin: Alignment.bottomCenter,
-                      end: Alignment.topCenter,
                     ),
                   ),
                 ),
@@ -385,11 +396,13 @@ class _HomeScreenState extends State<HomeScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(film.originalName,
-                          style: const TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white)),
+                      Text(
+                        film.originalName,
+                        style: const TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white),
+                      ),
                       Text("${film.countryName} • ${film.releaseYear}",
                           style: const TextStyle(color: Colors.grey)),
                     ],
@@ -404,8 +417,10 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   // ======================= MOVIE SECTION ==========================
-  Widget _buildMovieSection(
-      {required String title, required List<FilmInfo> films}) {
+  Widget _buildMovieSection({
+    required String title,
+    required List<FilmInfo> films,
+  }) {
     if (films.isEmpty) return const SizedBox.shrink();
 
     return Column(
@@ -413,9 +428,11 @@ class _HomeScreenState extends State<HomeScreen> {
       children: [
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-          child: Text(title,
-              style: const TextStyle(
-                  fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
+          child: Text(
+            title,
+            style: const TextStyle(
+                fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
+          ),
         ),
         SizedBox(
           height: 260,
@@ -424,16 +441,15 @@ class _HomeScreenState extends State<HomeScreen> {
             itemCount: films.length,
             itemBuilder: (context, index) {
               final film = films[index];
-              final poster = film.posterMain.isNotEmpty
-                  ? film.posterMain
-                  : film.posterBanner;
+              final poster =
+              film.posterMain.isNotEmpty ? film.posterMain : film.posterBanner;
 
               return GestureDetector(
                 onTap: () {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                        builder: (_) => DetailFilmScreen(filmId:film.filmId)),
+                        builder: (_) => DetailFilmScreen(filmId: film.filmId)),
                   );
                 },
                 child: Container(
@@ -452,16 +468,20 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                       ),
                       const SizedBox(height: 6),
-                      Text(film.originalName,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                              fontSize: 14,
-                              color: Colors.white,
-                              fontWeight: FontWeight.w600)),
-                      Text(film.countryName,
-                          style:
-                          const TextStyle(color: Colors.grey, fontSize: 12)),
+                      Text(
+                        film.originalName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                            fontSize: 14,
+                            color: Colors.white,
+                            fontWeight: FontWeight.w600),
+                      ),
+                      Text(
+                        film.countryName,
+                        style: const TextStyle(
+                            color: Colors.grey, fontSize: 12),
+                      ),
                     ],
                   ),
                 ),
@@ -473,22 +493,14 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // ======================= MOVIE SECTION WITH COUNT ==========================
-  Widget _buildMovieSectionWithCount(
-      {required String title, required List<FilmInfo> films}) {
-    if (films.isEmpty) return const SizedBox.shrink();
-
-    final bool searching = _searchKeyword.isNotEmpty;
-    final newTitle = searching ? "$title (${films.length})" : title;
-
-    return _buildMovieSection(title: newTitle, films: films);
-  }
-
   // ======================= COUNTRY TAB ==========================
   Widget _buildCountryTab(String label) {
     final bool selected = _selectedCountry == label;
+
     return GestureDetector(
-      onTap: () => setState(() => _selectedCountry = label),
+      onTap: () {
+        setState(() => _selectedCountry = label);
+      },
       child: Container(
         margin: const EdgeInsets.only(right: 14),
         alignment: Alignment.center,
