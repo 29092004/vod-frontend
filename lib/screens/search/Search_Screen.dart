@@ -203,7 +203,6 @@ class _SearchScreenState extends State<SearchScreen> {
                     _buildFilterSection("Khu vực", _getCountries()),
                     _buildGenreSection(),
                     _buildFilterSection("Thập niên", _getYears()),
-                    _buildFilterSection("Sắp xếp", ["Độ hot", "Mới nhất"]),
                     const Divider(color: Colors.grey),
                   ],
                 ),
@@ -442,7 +441,7 @@ class _SearchScreenState extends State<SearchScreen> {
 
     // ❗ Khi không search & không filter → chỉ hiện 6 phim đầu tiên
     final List<FilmInfo> displayFilms =
-    (!isFiltering && films.length > 6) ? films.sublist(0, 6) : films;
+    (!isFiltering && films.length > 9) ? films.sublist(0, 9) : films;
 
     // ❗ Nếu không có phim -> hiện thông báo
     if (displayFilms.isEmpty) {

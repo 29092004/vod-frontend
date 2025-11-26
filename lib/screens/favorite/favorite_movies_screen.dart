@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-
 import '../../config/api.dart';
 import '../../services/auth_service.dart';
 import '../../services/Favorite_Service.dart';
@@ -36,9 +35,7 @@ class _FavoriteMoviesScreenState extends State<FavoriteMoviesScreen> {
       }
 
       if (!mounted) return;
-      setState(() {
-        _profileId = profileId;
-      });
+      setState(() => _profileId = profileId);
 
       if (_profileId == 0) {
         setState(() {
@@ -69,6 +66,7 @@ class _FavoriteMoviesScreenState extends State<FavoriteMoviesScreen> {
     try {
       final list = await FavoriteService.getFavoritesByProfile(_profileId);
       if (!mounted) return;
+
       setState(() {
         _items = list;
         _isLoading = false;
@@ -83,35 +81,45 @@ class _FavoriteMoviesScreenState extends State<FavoriteMoviesScreen> {
     }
   }
 
+  // ===== Helpers =====
   int _getFilmId(Map<String, dynamic> item) {
-    final v =
-        item['Film_id'] ?? item['film_id'] ?? item['filmId'] ?? item['id'];
+    final v = item['Film_id'] ?? item['film_id'] ?? item['filmId'] ?? item['id'];
     if (v is int) return v;
     if (v is num) return v.toInt();
     if (v is String) return int.tryParse(v) ?? 0;
     return 0;
   }
 
-  String _getTitle(Map<String, dynamic> item) {
+  String _getFilmName(Map<String, dynamic> item) {
     return (item['Film_name'] ??
-            item['film_name'] ??
-            item['Name'] ??
-            item['name'] ??
-            'Không rõ tên')
+        item['film_name'] ??
+        item['Name'] ??
+        item['name'] ??
+        "Không rõ tên")
+        .toString();
+  }
+
+  String _getOriginalName(Map<String, dynamic> item) {
+    return (item['Original_name'] ??
+        item['original_name'] ??
+        item['OriginalName'] ??
+        item['originalName'] ??
+        "")
         .toString();
   }
 
   String? _getPoster(Map<String, dynamic> item) {
-    final raw =
-        item['Poster_url'] ??
+    final raw = item['Poster_url'] ??
         item['poster_url'] ??
         item['Image'] ??
         item['image'];
+
     if (raw == null) return null;
+
     final s = raw.toString();
-    if (s.isEmpty) return null;
-    if (s.startsWith('http://') || s.startsWith('https://')) return s;
-    return '${Api.baseHost}$s';
+    if (s.startsWith('http')) return s;
+
+    return "${Api.baseHost}$s";
   }
 
   @override
@@ -139,49 +147,35 @@ class _FavoriteMoviesScreenState extends State<FavoriteMoviesScreen> {
 
     if (_profileId == 0) {
       return const Center(
-        child: Padding(
-          padding: EdgeInsets.all(16),
-          child: Text(
-            'Vui lòng đăng nhập để xem danh sách phim yêu thích.',
-            style: TextStyle(color: Colors.white),
-            textAlign: TextAlign.center,
-          ),
+        child: Text(
+          'Vui lòng đăng nhập để xem danh sách phim yêu thích.',
+          style: TextStyle(color: Colors.white),
+          textAlign: TextAlign.center,
         ),
       );
     }
 
     if (_error != null) {
       return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                _error!,
-                style: const TextStyle(color: Colors.redAccent),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 8),
-              ElevatedButton(
-                onPressed: _loadFavorites,
-                child: const Text('Thử lại'),
-              ),
-            ],
-          ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(_error!, style: const TextStyle(color: Colors.redAccent)),
+            const SizedBox(height: 8),
+            ElevatedButton(
+              onPressed: _loadFavorites,
+              child: const Text('Thử lại'),
+            )
+          ],
         ),
       );
     }
 
     if (_items.isEmpty) {
       return const Center(
-        child: Padding(
-          padding: EdgeInsets.all(16),
-          child: Text(
-            'Bạn chưa có phim nào trong danh sách yêu thích.',
-            style: TextStyle(color: Colors.white),
-            textAlign: TextAlign.center,
-          ),
+        child: Text(
+          'Bạn chưa có phim nào trong danh sách yêu thích.',
+          style: TextStyle(color: Colors.white),
         ),
       );
     }
@@ -192,91 +186,63 @@ class _FavoriteMoviesScreenState extends State<FavoriteMoviesScreen> {
         padding: const EdgeInsets.all(10),
         itemCount: _items.length,
         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 2, // 2 cột
+          crossAxisCount: 2,
           crossAxisSpacing: 12,
           mainAxisSpacing: 14,
-          childAspectRatio: 0.68,
+          childAspectRatio: 0.63,
         ),
         itemBuilder: (context, index) {
           final item = _items[index];
           final filmId = _getFilmId(item);
-          final title = _getTitle(item);
+          final title = _getFilmName(item);
+
           final poster = _getPoster(item);
 
           return GestureDetector(
             onTap: () {
-              if (filmId == 0) return;
               Navigator.push(
                 context,
-                MaterialPageRoute(
-                  builder: (_) => DetailFilmScreen(filmId: filmId),
-                ),
+                MaterialPageRoute(builder: (_) => DetailFilmScreen(filmId: filmId)),
               );
             },
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: AspectRatio(
-                aspectRatio: 0.68,
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    // Poster
-                    poster != null
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Poster
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: SizedBox(
+                    height: 200,
+                    width: double.infinity,
+                    child: poster != null
                         ? Image.network(
-                            poster,
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => Container(
-                              color: Colors.grey[800],
-                              child: const Icon(
-                                Icons.broken_image,
-                                color: Colors.white,
-                              ),
-                            ),
-                          )
+                      poster,
+                      fit: BoxFit.cover,
+                    )
                         : Container(
-                            color: Colors.grey[900],
-                            child: const Icon(
-                              Icons.movie,
-                              color: Colors.white,
-                              size: 40,
-                            ),
-                          ),
-
-                    // Gradient + title ở dưới
-                    Positioned(
-                      left: 0,
-                      right: 0,
-                      bottom: 0,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 6,
-                        ),
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: Alignment.bottomCenter,
-                            end: Alignment.topCenter,
-                            colors: [
-                              Colors.black.withOpacity(0.85),
-                              Colors.black.withOpacity(0.0),
-                            ],
-                          ),
-                        ),
-                        child: Text(
-                          title,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w600,
-                            fontSize: 13,
-                          ),
-                        ),
-                      ),
+                      color: Colors.grey[900],
+                      child: const Icon(Icons.movie,
+                          color: Colors.white, size: 40),
                     ),
-                  ],
+                  ),
                 ),
-              ),
+
+                const SizedBox(height: 6),
+
+                // Tên phim
+                Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+
+
+              ],
             ),
           );
         },

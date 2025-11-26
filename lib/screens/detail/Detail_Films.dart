@@ -1034,6 +1034,19 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
                         ),
                         const SizedBox(height: 6),
 
+                        // 🔹 Original Name (nhỏ hơn)
+                        if (_film!.originalName.isNotEmpty)
+                          Text(
+                            _film!.originalName,
+                            style: const TextStyle(
+                              color: Colors.white70,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w400,
+                            ),
+                          ),
+
+                        const SizedBox(height: 10),
+
                         // Thông tin cơ bản
                         Text(
                           "${_film!.releaseYear} | ${_film!.maturityRating.isNotEmpty ? _film!.maturityRating : 'Tất cả'} | ${_film!.countryName} | ${_film!.isSeries ? 'Phim bộ' : 'Phim lẻ'} | ${_film!.filmStatus}",
@@ -2057,6 +2070,7 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
                           fontSize: 12,
                         ),
                       ),
+
                     ],
                   ),
                 ),

@@ -397,14 +397,16 @@ class _HomeScreenState extends State<HomeScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        film.originalName,
+                        film.filmName,
                         style: const TextStyle(
                             fontSize: 20,
                             fontWeight: FontWeight.bold,
                             color: Colors.white),
                       ),
+
                       Text("${film.countryName} • ${film.releaseYear}",
                           style: const TextStyle(color: Colors.grey)),
+
                     ],
                   ),
                 ),
@@ -422,7 +424,6 @@ class _HomeScreenState extends State<HomeScreen> {
     required List<FilmInfo> films,
   }) {
     if (films.isEmpty) return const SizedBox.shrink();
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -441,8 +442,9 @@ class _HomeScreenState extends State<HomeScreen> {
             itemCount: films.length,
             itemBuilder: (context, index) {
               final film = films[index];
-              final poster =
-              film.posterMain.isNotEmpty ? film.posterMain : film.posterBanner;
+              final poster = film.posterMain.isNotEmpty
+                  ? film.posterMain
+                  : film.posterBanner;
 
               return GestureDetector(
                 onTap: () {
@@ -467,9 +469,12 @@ class _HomeScreenState extends State<HomeScreen> {
                           fit: BoxFit.cover,
                         ),
                       ),
+
                       const SizedBox(height: 6),
+
+                      /// ⭐ TÊN TIẾNG VIỆT
                       Text(
-                        film.originalName,
+                        film.filmName,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
@@ -477,10 +482,15 @@ class _HomeScreenState extends State<HomeScreen> {
                             color: Colors.white,
                             fontWeight: FontWeight.w600),
                       ),
+
+
                       Text(
-                        film.countryName,
+                        film.originalName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
-                            color: Colors.grey, fontSize: 12),
+                            color: Colors.grey,
+                            fontSize: 12),
                       ),
                     ],
                   ),
@@ -492,6 +502,7 @@ class _HomeScreenState extends State<HomeScreen> {
       ],
     );
   }
+
 
   // ======================= COUNTRY TAB ==========================
   Widget _buildCountryTab(String label) {

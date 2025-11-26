@@ -324,19 +324,6 @@ class _FavoriteScreenState extends State<FavoriteScreen> {
                     ),
                     const SizedBox(height: 2),
 
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 4),
-                      child: const Text(
-                        "Sword and Beloved",
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: Colors.white54,
-                          fontSize: 12,
-                          fontStyle: FontStyle.italic,
-                        ),
-                      ),
-                    ),
                   ],
                 ),
               ),
