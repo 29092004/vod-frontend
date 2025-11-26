@@ -150,7 +150,8 @@ class _SearchScreenState extends State<SearchScreen> {
                     const SizedBox(width: 8),
                     Expanded(
                       child: TextField(
-                        style: const TextStyle(color: Colors.white, fontSize: 15),
+                        style: const TextStyle(
+                            color: Colors.white, fontSize: 15),
                         decoration: const InputDecoration(
                           hintText: "Tìm kiếm phim...",
                           hintStyle: TextStyle(color: Colors.grey),
@@ -197,7 +198,8 @@ class _SearchScreenState extends State<SearchScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     _buildFilterSection(
-                        "Loại phim", ["Toàn bộ loại phim", "Phim Bộ", "Phim Lẻ"]),
+                        "Loại phim",
+                        ["Toàn bộ loại phim", "Phim Bộ", "Phim Lẻ"]),
                     _buildFilterSection("Khu vực", _getCountries()),
                     _buildGenreSection(),
                     _buildFilterSection("Thập niên", _getYears()),
@@ -433,12 +435,17 @@ class _SearchScreenState extends State<SearchScreen> {
   Widget _buildMovieGrid(List<FilmInfo> films) {
     final int count = films.length;
 
-    // ❗ Điều kiện: chỉ hiển thị tiêu đề khi người dùng thực sự lọc hoặc tìm kiếm
-    final bool shouldShowTitle =
-        _searchKeyword.isNotEmpty || selectedFilters.values.any((s) => s.isNotEmpty);
+    // ❗ Điều kiện nhận biết đang search / lọc
+    final bool isFiltering =
+        _searchKeyword.isNotEmpty ||
+            selectedFilters.values.any((s) => s.isNotEmpty);
 
-    // ❗ Nếu không có phim -> chỉ hiện thông báo và kết thúc
-    if (films.isEmpty) {
+    // ❗ Khi không search & không filter → chỉ hiện 6 phim đầu tiên
+    final List<FilmInfo> displayFilms =
+    (!isFiltering && films.length > 6) ? films.sublist(0, 6) : films;
+
+    // ❗ Nếu không có phim -> hiện thông báo
+    if (displayFilms.isEmpty) {
       return const Center(
         child: Padding(
           padding: EdgeInsets.all(20),
@@ -450,10 +457,12 @@ class _SearchScreenState extends State<SearchScreen> {
       );
     }
 
+    // ❗ Chỉ hiển thị tiêu đề khi có search hoặc filter
+    final bool shouldShowTitle = isFiltering;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // 🌟 Chỉ hiển thị tiêu đề khi có tìm kiếm hoặc filter
         if (shouldShowTitle)
           Padding(
             padding: const EdgeInsets.only(left: 4, bottom: 10),
@@ -467,7 +476,7 @@ class _SearchScreenState extends State<SearchScreen> {
             ),
           ),
 
-        // 🌟 GIỮ NGUYÊN CODE CŨ (KHÔNG XOÁ)
+        // 🌟 GIỮ NGUYÊN GRID CŨ (chỉ thay danh sách là displayFilms)
         GridView.builder(
           physics: const NeverScrollableScrollPhysics(),
           shrinkWrap: true,
@@ -477,16 +486,19 @@ class _SearchScreenState extends State<SearchScreen> {
             mainAxisSpacing: 12,
             childAspectRatio: 0.55,
           ),
-          itemCount: films.length,
+          itemCount: displayFilms.length,
           itemBuilder: (context, index) {
-            final film = films[index];
+            final film = displayFilms[index];
+            final poster = film.posterMain.isNotEmpty
+                ? film.posterMain
+                : "https://via.placeholder.com/150";
+
             return GestureDetector(
               onTap: () {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                      builder: (context) =>
-                          DetailFilmScreen(filmId: film.filmId)),
+                      builder: (_) => DetailFilmScreen(filmId: film.filmId)),
                 );
               },
               child: Column(
@@ -495,9 +507,7 @@ class _SearchScreenState extends State<SearchScreen> {
                   ClipRRect(
                     borderRadius: BorderRadius.circular(8),
                     child: Image.network(
-                      film.posterMain.isNotEmpty
-                          ? film.posterMain
-                          : "https://via.placeholder.com/150",
+                      poster,
                       height: 150,
                       width: double.infinity,
                       fit: BoxFit.cover,
@@ -505,14 +515,6 @@ class _SearchScreenState extends State<SearchScreen> {
                   ),
                   const SizedBox(height: 6),
 
-                  // ❌ Ẩn dòng quốc gia — nhưng vẫn giữ code
-                  // Text(
-                  //   film.countryName,
-                  //   style: const TextStyle(color: Colors.grey, fontSize: 12),
-                  // ),
-                  const SizedBox.shrink(),
-
-                  // ✅ Giữ lại tên phim
                   Text(
                     film.filmName,
                     maxLines: 1,
