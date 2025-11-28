@@ -358,9 +358,7 @@ class _AccountScreenState extends State<AccountScreen> {
             onPressed: () async {
               final newName = nameController.text.trim();
               if (newName.isEmpty) return;
-
               Navigator.pop(context);
-
               try {
                 final profileId =
                     _user?['profile_id'] ?? _user?['Profile_id'];

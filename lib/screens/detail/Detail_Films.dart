@@ -49,6 +49,42 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
   int _totalReviews = 0;
   bool _isPremiumUser = false;
   bool _isFilmPremium = false;
+  bool _isExpandedDescription = false;
+  bool isExpanded = false;
+
+
+
+  Future<void> _initYouTube(String url) async {
+    final id = _extractYouTubeId(url);
+    if (id == null) return;
+
+    _youtubeController?.dispose();
+
+    _youtubeController = YoutubePlayerController(
+      initialVideoId: id,
+      flags: const YoutubePlayerFlags(
+        autoPlay: true,
+        mute: false,
+        forceHD: true,
+      ),
+    );
+
+    setState(() {});
+  }
+
+  String detectVideoType(String url) {
+    final lower = url.toLowerCase();
+
+    if (lower.contains("youtube.com") ||
+        lower.contains("youtu.be")) return "youtube";
+
+    if (lower.endsWith(".m3u8")) return "m3u8";
+
+    if (lower.endsWith(".mp4")) return "mp4";
+
+    return "unknown";
+  }
+
 
   FilmInfo? _film;
   List<FilmInfo>? _recommendations;
@@ -138,6 +174,8 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
       },
     );
   }
+
+
 
   @override
   void initState() {
@@ -567,37 +605,79 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
       });
       return;
     }
+
     try {
       final sources = data.sources ?? "";
       final trailer = data.trailerUrl.trim();
       String? playUrl;
 
+      // ======================================================
+      // 🔥 ƯU TIÊN 1: Nếu là HLS (.m3u8)
+      // ======================================================
       if (sources.isNotEmpty && sources.contains(".m3u8")) {
         final urls = _extractEpisodeUrls(sources);
         if (urls.isNotEmpty) {
-          final firstUrl = urls.first;
-          _initBetterPlayer(firstUrl);
-          final epId = data.seasons?[0]["Episodes"]?[0]["Episode_id"] ?? 1;
+          _initBetterPlayer(urls.first);
 
-          setState(() {
-            _isVideoReady = true;
-            if (widget.episodeId != null) {
-              //  Load tập đang xem từ xem tiếp
-              _selectedEpisodeId = widget.episodeId!;
-              _selectedEpisodeNumber = _findEpisodeNumberById(
-                widget.episodeId!,
-                data,
-              );
-            } else {
-              //  Mặc định tập 1
-              _selectedEpisodeId = epId;
-              _selectedEpisodeNumber = 1;
+          // ⭐ THÊM: TỰ SET TẬP ĐẦU TIÊN ĐỂ HIGHLIGHT CHẠY
+          try {
+            final firstSeason = data.seasons?[0];
+            final firstEp = firstSeason?["Episodes"]?[0];
+            if (firstEp != null) {
+              _selectedEpisodeId = firstEp["Episode_id"];
+              _selectedEpisodeNumber = firstEp["Episode_number"];
             }
-          });
+          } catch (_) {}
+
+          setState(() => _isVideoReady = true);
           return;
         }
       }
 
+      // ======================================================
+      // 🔥 ƯU TIÊN 2: Trailer (YouTube / MP4)
+      // ======================================================
+      else if (trailer.isNotEmpty) {
+        // YouTube
+        if (trailer.contains("youtube.com") || trailer.contains("youtu.be")) {
+          await _initYouTube(trailer);
+
+          // ⭐ THÊM: Set tập 1 khi dùng trailer YouTube
+          try {
+            final firstSeason = data.seasons?[0];
+            final firstEp = firstSeason?["Episodes"]?[0];
+            if (firstEp != null) {
+              _selectedEpisodeId = firstEp["Episode_id"];
+              _selectedEpisodeNumber = firstEp["Episode_number"];
+            }
+          } catch (_) {}
+
+          setState(() => _isVideoReady = true);
+          return;
+        }
+
+        // MP4
+        if (trailer.endsWith(".mp4")) {
+          await _initVideoPlayer(trailer);
+
+          // ⭐ THÊM: Set tập đầu tiên
+          try {
+            final firstSeason = data.seasons?[0];
+            final firstEp = firstSeason?["Episodes"]?[0];
+            if (firstEp != null) {
+              _selectedEpisodeId = firstEp["Episode_id"];
+              _selectedEpisodeNumber = firstEp["Episode_number"];
+            }
+          } catch (_) {}
+
+          setState(() => _isVideoReady = true);
+          return;
+        }
+      }
+
+      // ======================================================
+      // 🔥 ƯU TIÊN 3: Trailer fallback (embed YouTube hoặc MP4)
+      // ======================================================
       if (trailer.isNotEmpty) {
         if (trailer.contains("youtube.com") || trailer.contains("youtu.be")) {
           final id = _extractYouTubeId(trailer);
@@ -610,17 +690,33 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
 
         if (playUrl != null) {
           await _initVideoPlayer(playUrl);
+
+          // ⭐ THÊM: Set tập đầu tiên
+          try {
+            final firstSeason = data.seasons?[0];
+            final firstEp = firstSeason?["Episodes"]?[0];
+            if (firstEp != null) {
+              _selectedEpisodeId = firstEp["Episode_id"];
+              _selectedEpisodeNumber = firstEp["Episode_number"];
+            }
+          } catch (_) {}
+
           setState(() => _isVideoReady = true);
           return;
         }
       }
 
+      // ======================================================
+      // 🔥 KHÔNG CÓ VIDEO
+      // ======================================================
       setState(() => _isVideoReady = false);
+
     } catch (e) {
       debugPrint(" Lỗi tải video: $e");
       setState(() => _isVideoReady = false);
     }
   }
+
 
   //  Khởi tạo VideoPlayer
   Future<void> _initVideoPlayer(String url) async {
@@ -657,17 +753,6 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
     return urls;
   }
 
-  int _findEpisodeNumberById(int episodeId, FilmInfo film) {
-    for (var season in film.seasons ?? []) {
-      for (var ep in (season["Episodes"] ?? [])) {
-        if (ep["Episode_id"] == episodeId) {
-          return ep["Episode_number"];
-        }
-      }
-    }
-    return 1;
-  }
-
   //  Hàm dựng lại URL 480p / 720p CHUẨN theo cấu trúc thư mục R2
   String buildQualityUrl(String url, String quality) {
     try {
@@ -689,115 +774,140 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
 
 
   void _initBetterPlayer(String url) async {
+    try {
+      // ------------------------------------------------------------------
+      // 🛑 BƯỚC 1 — NGẮT & HỦY CONTROLLER CŨ MỘT CÁCH AN TOÀN
+      // ------------------------------------------------------------------
+      if (_betterPlayerController != null) {
+        try {
+          await _betterPlayerController!.pause();
+        } catch (_) {}
+        try {
+          _betterPlayerController!.dispose();
+        } catch (_) {}
 
-    // 🛑 FIX: Hủy controller cũ trước khi tạo controller mới
-    if (_betterPlayerController != null) {
-      try {
-        await _betterPlayerController!.pause();
-      } catch (_) {}
-      try {
-       _betterPlayerController!.dispose();
-      } catch (_) {}
-      _betterPlayerController = null;
-    }
+        setState(() {
+          _betterPlayerController = null;   // 🔥 QUAN TRỌNG
+        });
 
-    // 🔹 Tạo bản đồ độ phân giải CHUẨN
-    final qualityUrls = {
-      "720p": buildQualityUrl(url, "720p"),
-      "480p": buildQualityUrl(url, "480p"),
-    };
-
-    //  DataSource chính kèm hai độ phân giải
-    final dataSource = BetterPlayerDataSource(
-      BetterPlayerDataSourceType.network,
-      url,
-      videoFormat: BetterPlayerVideoFormat.hls,
-      resolutions: {
-        "720p": qualityUrls["720p"]!,
-        "480p": qualityUrls["480p"]!,
-      },
-    );
-
-    _betterPlayerController = BetterPlayerController(
-      BetterPlayerConfiguration(
-        autoPlay: true,
-        aspectRatio: 16 / 9,
-        fit: BoxFit.cover,
-        startAt: widget.startPosition,
-        fullScreenByDefault: false,
-        allowedScreenSleep: false,
-        autoDetectFullscreenDeviceOrientation: true,
-        autoDetectFullscreenAspectRatio: true,
-        deviceOrientationsOnFullScreen: const [
-          DeviceOrientation.landscapeLeft,
-          DeviceOrientation.landscapeRight,
-        ],
-        deviceOrientationsAfterFullScreen:
-        const [DeviceOrientation.portraitUp],
-        controlsConfiguration: const BetterPlayerControlsConfiguration(
-          enableFullscreen: true,
-          enableQualities: true,
-          enablePlaybackSpeed: true,
-          enableProgressBar: true,
-          enablePlayPause: true,
-          enableSkips: true,
-          enableMute: true,
-          enableAudioTracks: true,
-          enableOverflowMenu: true,
-          controlBarColor: Colors.transparent,
-          loadingColor: Colors.white,
-          enablePip: false,
-        ),
-      ),
-      betterPlayerDataSource: dataSource,
-    );
-
-    //  Khi video load xong thì seek tới vị trí cũ & phát luôn
-    _betterPlayerController!.addEventsListener((event) async {
-      if (event.betterPlayerEventType == BetterPlayerEventType.initialized) {
-        if (widget.startPosition != null &&
-            widget.startPosition!.inSeconds > 5) {
-          await _betterPlayerController!
-              .seekTo(widget.startPosition!);
-          await _betterPlayerController!.play();
-        } else {
-          await _betterPlayerController!.play();
-        }
+        await Future.delayed(const Duration(milliseconds: 50));
       }
 
-      //  Cập nhật tiến độ xem
-      if (event.betterPlayerEventType == BetterPlayerEventType.progress) {
-        final pos = event.parameters?['progress'] as Duration?;
-        final dur = event.parameters?['duration'] as Duration?;
 
-        if (pos != null && dur != null) {
-          _watchPosition = pos.inSeconds;
-          _videoDuration = dur.inSeconds;
+      // ------------------------------------------------------------------
+      // BƯỚC 2 — TẠO URL CHẤT LƯỢNG
+      // ------------------------------------------------------------------
+      final qualityUrls = {
+        "720p": buildQualityUrl(url, "720p"),
+        "480p": buildQualityUrl(url, "480p"),
+      };
 
-          if (!_viewCounted && _watchPosition >= 30) {
-            _viewCounted = true;
-            _increaseLocalViews();
+      final dataSource = BetterPlayerDataSource(
+        BetterPlayerDataSourceType.network,
+        url,
+        videoFormat: BetterPlayerVideoFormat.hls,
+        resolutions: {
+          "720p": qualityUrls["720p"]!,
+          "480p": qualityUrls["480p"]!,
+        },
+      );
+
+      // ------------------------------------------------------------------
+      // BƯỚC 3 — TẠO CONTROLLER MỚI
+      // ------------------------------------------------------------------
+      _betterPlayerController = BetterPlayerController(
+        BetterPlayerConfiguration(
+          autoPlay: true,
+          aspectRatio: 16 / 9,
+          fit: BoxFit.cover,
+          startAt: widget.startPosition,
+          fullScreenByDefault: false,
+          allowedScreenSleep: false,
+
+          autoDetectFullscreenDeviceOrientation: true,
+          autoDetectFullscreenAspectRatio: true,
+
+          deviceOrientationsOnFullScreen: const [
+            DeviceOrientation.landscapeLeft,
+            DeviceOrientation.landscapeRight,
+          ],
+          deviceOrientationsAfterFullScreen: const [
+            DeviceOrientation.portraitUp,
+          ],
+
+          controlsConfiguration: const BetterPlayerControlsConfiguration(
+            enableFullscreen: true,
+            enableQualities: true,
+            enablePlaybackSpeed: true,
+            enableProgressBar: true,
+            enablePlayPause: true,
+            enableSkips: true,
+            enableMute: true,
+            enableAudioTracks: true,
+            enableOverflowMenu: true,
+            controlBarColor: Colors.transparent,
+            loadingColor: Colors.white,
+            enablePip: false,
+          ),
+        ),
+        betterPlayerDataSource: dataSource,
+      );
+
+      // ------------------------------------------------------------------
+      // BƯỚC 4 — LẮNG NGHE SỰ KIỆN VIDEO
+      // ------------------------------------------------------------------
+      _betterPlayerController!.addEventsListener((event) async {
+        if (!mounted) return;
+
+        // Khi video load xong
+        if (event.betterPlayerEventType == BetterPlayerEventType.initialized) {
+          if (widget.startPosition != null &&
+              widget.startPosition!.inSeconds > 5) {
+            await _betterPlayerController!.seekTo(widget.startPosition!);
+            await _betterPlayerController!.play();
+          } else {
+            await _betterPlayerController!.play();
           }
         }
-      }
 
+        // Cập nhật tiến độ
+        if (event.betterPlayerEventType == BetterPlayerEventType.progress) {
+          final pos = event.parameters?['progress'] as Duration?;
+          final dur = event.parameters?['duration'] as Duration?;
 
-      // Khi phát xong phim
-      if (event.betterPlayerEventType == BetterPlayerEventType.finished) {
-        debugPrint(" Xem hết phim — đặt tiến độ về 0");
-        _watchPosition = 0;
-        _saveWatchProgress();
-      }
-    });
+          if (pos != null && dur != null) {
+            _watchPosition = pos.inSeconds;
+            _videoDuration = dur.inSeconds;
 
-    //  Lưu định kỳ mỗi 10 giây
-    _saveTimer?.cancel();
-    _saveTimer = Timer.periodic(const Duration(seconds: 10), (_) {
-      if (_videoDuration > 0 && _watchPosition > 5) {
-        _saveWatchProgress();
-      }
-    });
+            if (!_viewCounted && _watchPosition >= 30) {
+              _viewCounted = true;
+              _increaseLocalViews();
+            }
+          }
+        }
+
+        // Khi phát xong video
+        if (event.betterPlayerEventType == BetterPlayerEventType.finished) {
+          debugPrint("🎬 Đã xem hết video — RESET tiến độ về 0");
+          _watchPosition = 0;
+          _saveWatchProgress();
+        }
+      });
+
+      // ------------------------------------------------------------------
+      // BƯỚC 5 — TỰ LƯU TIẾN ĐỘ MỖI 10 GIÂY
+      // ------------------------------------------------------------------
+      _saveTimer?.cancel();
+      _saveTimer = Timer.periodic(const Duration(seconds: 10), (_) {
+        if (_videoDuration > 0 && _watchPosition > 5) {
+          _saveWatchProgress();
+        }
+      });
+    } catch (e) {
+      debugPrint("🔥 Lỗi khi init BetterPlayer: $e");
+    }
   }
+
 
   void _playEpisode(Map<String, dynamic> episodeData) async {
     if (_film == null || _film!.sources == null) return;
@@ -811,15 +921,67 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
     final int index = (episodeNumber - 1).clamp(0, urls.length - 1);
     final selectedUrl = urls[index];
 
-    //  RESET tiến độ khi đổi tập
+    // RESET tiến độ khi đổi tập
     _watchPosition = 0;
 
     final volume = _systemVolume;
 
-    //  Tạo URL đúng chuẩn thay thế hoàn toàn replaceFirst lỗi
+    // ============================
+    // 🎯 BỔ SUNG: Detect loại video
+    // ============================
+    final videoType = detectVideoType(selectedUrl);
+
+    // 🎬 Nếu YouTube → chạy YoutubePlayer
+    if (videoType == "youtube") {
+      // Hủy controller cũ nếu có
+      _betterPlayerController?.dispose();
+      _betterPlayerController = null;
+
+      _videoController?.dispose();
+      _videoController = null;
+
+      await _initYouTube(selectedUrl);
+
+      setState(() {
+        _selectedEpisodeId = episodeId;
+        _selectedEpisodeNumber = episodeNumber;
+        _isVideoReady = true;
+        _viewCounted = false;
+      });
+
+      await _loadLocalViews();
+      return;
+    }
+
+    // 🎬 Nếu là MP4 → VideoPlayerController
+    if (videoType == "mp4") {
+      _betterPlayerController?.dispose();
+      _betterPlayerController = null;
+
+      _youtubeController?.dispose();
+      _youtubeController = null;
+
+      await _initVideoPlayer(selectedUrl);
+
+      setState(() {
+        _selectedEpisodeId = episodeId;
+        _selectedEpisodeNumber = episodeNumber;
+        _isVideoReady = true;
+        _viewCounted = false;
+      });
+
+      await _loadLocalViews();
+      return;
+    }
+
+    // ============================
+    // 🟢 M3U8 → CHẠY CODE CŨ CỦA BẠN
+    // ============================
+
     final quality720 = buildQualityUrl(selectedUrl, "720p");
     final quality480 = buildQualityUrl(selectedUrl, "480p");
 
+    // Hủy controller cũ trước khi tạo mới
     if (_betterPlayerController != null) {
       try {
         await _betterPlayerController!.pause();
@@ -830,12 +992,12 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
       _betterPlayerController = null;
     }
 
-
+    // Nếu controller đã tồn tại → setup lại
     if (_betterPlayerController != null) {
       await _betterPlayerController!.setupDataSource(
         BetterPlayerDataSource(
           BetterPlayerDataSourceType.network,
-          quality720, // ÉP 720p mặc định
+          quality720,
           videoFormat: BetterPlayerVideoFormat.hls,
           resolutions: {
             "720p": quality720,
@@ -844,10 +1006,11 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
         ),
       );
 
-      //  QUAN TRỌNG — RESET VỀ 0 GIÂY
       await _betterPlayerController!.seekTo(Duration.zero);
       _betterPlayerController!.setVolume(volume);
-    } else {
+    }
+    else {
+      // CHẠY CODE CŨ: khởi tạo BetterPlayer
       _initBetterPlayer(selectedUrl);
     }
 
@@ -856,10 +1019,11 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
       _selectedEpisodeNumber = episodeNumber;
       _isVideoReady = true;
       _viewCounted = false;
-
     });
+
     await _loadLocalViews();
   }
+
 
   // Hàm lưu tiến độ xem
   Future<void> _saveWatchProgress() async {
@@ -967,10 +1131,17 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
 
   @override
   void dispose() {
+    // 🔥 RESET ORIENTATION VỀ CHẾ ĐỘ DỌC KHI THOÁT MÀN HÌNH
+    SystemChrome.setPreferredOrientations([
+      DeviceOrientation.portraitUp,
+      DeviceOrientation.portraitDown,
+    ]);
+
     if (!_hasSaved && _videoDuration > 0 && _watchPosition > 5) {
       _saveWatchProgress();
       _hasSaved = true;
     }
+
     _saveTimer?.cancel();
     _videoController?.dispose();
     _youtubeController?.dispose();
@@ -980,6 +1151,7 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
     _volumeController.removeListener();
     super.dispose();
   }
+
 
   // ============================================================
   // UI PHẦN DƯỚI VẪN GIỮ NGUYÊN
@@ -1015,7 +1187,15 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
           children: [
             Column(
               children: [
-                AspectRatio(aspectRatio: 16 / 9, child: _buildVideoSection()),
+                // FIX: Không ép YouTube vào AspectRatio nữa để tránh overflow
+                SizedBox(
+                  width: double.infinity,
+                  height: MediaQuery.of(context).size.width * 9 / 16,  // ⬅ GIẢM CHIỀU CAO
+                  child: ClipRRect(                                       // ⬅ CHẶN VIỀN TRÀN
+                    borderRadius: BorderRadius.circular(4),
+                    child: _buildVideoSection(),
+                  ),
+                ),
 
                 Expanded(
                   child: SingleChildScrollView(
@@ -1117,17 +1297,114 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
 
                         const SizedBox(height: 12),
 
-                        //  Mô tả phim
-                        Text(
-                          _film!.description.isNotEmpty
-                              ? _film!.description
-                              : "Chưa có mô tả cho bộ phim này.",
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 14,
-                            height: 1.4,
-                          ),
+                        // 🔥 Mô tả phim 3 dòng
+                        Builder(
+                          builder: (context) {
+                            final description = _film!.description.isNotEmpty
+                                ? _film!.description
+                                : "Chưa có mô tả cho bộ phim này.";
+
+                            return LayoutBuilder(
+                              builder: (context, constraints) {
+                                final span = TextSpan(
+                                  text: description,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 14,
+                                    height: 1.2,
+                                  ),
+                                );
+
+                                final tp = TextPainter(
+                                  text: span,
+                                  maxLines: 3,
+                                  textDirection: TextDirection.ltr,
+                                );
+
+                                tp.layout(maxWidth: constraints.maxWidth);
+
+                                final isOverflow = tp.didExceedMaxLines;
+
+                                return Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Stack(
+                                      children: [
+                                        // Nội dung 3 dòng
+                                        AnimatedCrossFade(
+                                          firstChild: Text(
+                                            description,
+                                            maxLines: 3,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: const TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 14,
+                                              height: 1.2,
+                                            ),
+                                          ),
+                                          secondChild: Text(
+                                            description,
+                                            style: const TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 14,
+                                              height: 1.2,
+                                            ),
+                                          ),
+                                          crossFadeState: _isExpandedDescription
+                                              ? CrossFadeState.showSecond
+                                              : CrossFadeState.showFirst,
+                                          duration: const Duration(milliseconds: 200),
+                                        ),
+
+                                        // ⭐ Nút xem thêm nằm NGAY CUỐI DÒNG 3
+                                        if (isOverflow && !_isExpandedDescription)
+                                          Positioned(
+                                            bottom: 0,
+                                            right: 0,
+                                            child: Container(
+                                              color: Colors.black,
+                                              padding: const EdgeInsets.only(left: 4),
+                                              child: GestureDetector(
+                                                onTap: () {
+                                                  setState(() => _isExpandedDescription = true);
+                                                },
+                                                child: const Text(
+                                                  " Xem thêm…",
+                                                  style: TextStyle(
+                                                    color: Colors.yellow,
+                                                    fontWeight: FontWeight.w600,
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                      ],
+                                    ),
+
+                                    // ⭐ Nút thu gọn
+                                    if (isOverflow && _isExpandedDescription)
+                                      GestureDetector(
+                                        onTap: () {
+                                          setState(() => _isExpandedDescription = false);
+                                        },
+                                        child: const Padding(
+                                          padding: EdgeInsets.only(top: 6),
+                                          child: Text(
+                                            "Thu gọn ▲",
+                                            style: TextStyle(
+                                              color: Colors.yellow,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                  ],
+                                );
+                              },
+                            );
+                          },
                         ),
+
                         if (_film!.genres.isNotEmpty)
                           Padding(
                             padding: const EdgeInsets.only(top: 6),
@@ -1235,7 +1512,6 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
             color: Colors.black.withOpacity(0.65),
           ),
 
-          // Icon khóa + thông báo
           Positioned.fill(
             child: Center(
               child: Column(
@@ -1248,8 +1524,7 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
                   ),
                   SizedBox(height: 12),
                   Text(
-                    "Nội dung chỉ dành cho tài khoản Premium"
-                        "Vui lòng vào tài khoản để nâng cấp",
+                    "Nội dung chỉ dành cho tài khoản Premium\nVui lòng vào tài khoản để nâng cấp",
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       color: Colors.white,
@@ -1265,11 +1540,48 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
       );
     }
 
-    //  Nếu user có Premium → phát video như bình thường
+    // --------------------------
+    //  🔥 FIX YOUTUBE KHÔNG BỊ OVERFLOW
+    // --------------------------
+    if (_youtubeController != null) {
+      final videoHeight = MediaQuery.of(context).size.width * 9 / 16;
+
+      return YoutubePlayerBuilder(
+        player: YoutubePlayer(
+          controller: _youtubeController!,
+          showVideoProgressIndicator: true,
+        ),
+        builder: (context, player) {
+          return Center(
+            child: Container(
+              width: double.infinity,
+              height: videoHeight,
+              color: Colors.black,
+              child: ClipRect(     // ⬅ CHẶN 100% THANH 1:1 + / - BỊ TRÀN
+                child: AspectRatio(
+                  aspectRatio: 16 / 9,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(6),
+                    child: player,
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
+      );
+    }
+
+    // --------------------------
+    //  BetterPlayer (MP4/HLS)
+    // --------------------------
     if (_betterPlayerController != null) {
       return BetterPlayer(controller: _betterPlayerController!);
     }
 
+    // --------------------------
+    //  VideoPlayer (mp4 local)
+    // --------------------------
     if (_videoController != null && _videoController!.value.isInitialized) {
       return AspectRatio(
         aspectRatio: _videoController!.value.aspectRatio,
@@ -1277,7 +1589,9 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
       );
     }
 
+    // --------------------------
     //  Không có video
+    // --------------------------
     return Stack(
       children: [
         Image.network(
@@ -1299,9 +1613,6 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
       ],
     );
   }
-
-
-
 
   Widget _buildRatingButton() {
     return GestureDetector(
