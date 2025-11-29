@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:better_player_plus/better_player_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -21,6 +22,9 @@ import '../../services/WatchListItem_Service.dart';
 import '../../utils/text_censor.dart';
 import 'Actor_Overlay.dart';
 import '../profile/Profile_Screen.dart';
+import 'package:flutter_quill/flutter_quill.dart' as quill;
+import 'package:dart_quill_delta/dart_quill_delta.dart' as dq;
+
 
 class DetailFilmScreen extends StatefulWidget {
   final int filmId;
@@ -51,7 +55,8 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
   bool _isFilmPremium = false;
   bool _isExpandedDescription = false;
   bool isExpanded = false;
-
+  quill.QuillController? _descController;
+  bool _isQuillDescription = false;
 
 
   Future<void> _initYouTube(String url) async {
@@ -124,6 +129,7 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
   bool _watchListLoading = false;
   bool _addingToWatchList = false;
   final TextEditingController _newListNameController = TextEditingController();
+
   void _showPremiumPopup() {
     showDialog(
       context: context,
@@ -174,7 +180,6 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
       },
     );
   }
-
 
 
   @override
@@ -364,7 +369,7 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
 
                   // Tìm lại list mới tạo theo tên (giả sử tên là duy nhất với user)
                   final created = _myWatchLists.firstWhere(
-                    (x) => x.name == name,
+                        (x) => x.name == name,
                     orElse: () => _myWatchLists.first,
                   );
 
@@ -436,47 +441,48 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
                     padding: EdgeInsets.all(16),
                     child: Center(child: CircularProgressIndicator()),
                   )
-                else ...[
-                  if (_myWatchLists.isEmpty)
-                    const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 16),
-                      child: Text(
-                        'Bạn chưa có danh sách nào.\nHãy tạo danh sách mới để lưu phim.',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(color: Colors.white70),
+                else
+                  ...[
+                    if (_myWatchLists.isEmpty)
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 16),
+                        child: Text(
+                          'Bạn chưa có danh sách nào.\nHãy tạo danh sách mới để lưu phim.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(color: Colors.white70),
+                        ),
+                      )
+                    else
+                      Flexible(
+                        child: ListView.builder(
+                          shrinkWrap: true,
+                          itemCount: _myWatchLists.length,
+                          itemBuilder: (_, index) {
+                            final wl = _myWatchLists[index];
+                            return ListTile(
+                              onTap: () => _handleAddToWatchList(wl),
+                              leading: const Icon(
+                                Icons.playlist_play,
+                                color: Colors.white,
+                              ),
+                              title: Text(
+                                wl.name,
+                                style: const TextStyle(color: Colors.white),
+                              ),
+                              subtitle: wl.createdAt != null
+                                  ? Text(
+                                'Tạo: ${wl.createdAt}',
+                                style: const TextStyle(
+                                  color: Colors.white54,
+                                  fontSize: 12,
+                                ),
+                              )
+                                  : null,
+                            );
+                          },
+                        ),
                       ),
-                    )
-                  else
-                    Flexible(
-                      child: ListView.builder(
-                        shrinkWrap: true,
-                        itemCount: _myWatchLists.length,
-                        itemBuilder: (_, index) {
-                          final wl = _myWatchLists[index];
-                          return ListTile(
-                            onTap: () => _handleAddToWatchList(wl),
-                            leading: const Icon(
-                              Icons.playlist_play,
-                              color: Colors.white,
-                            ),
-                            title: Text(
-                              wl.name,
-                              style: const TextStyle(color: Colors.white),
-                            ),
-                            subtitle: wl.createdAt != null
-                                ? Text(
-                                    'Tạo: ${wl.createdAt}',
-                                    style: const TextStyle(
-                                      color: Colors.white54,
-                                      fontSize: 12,
-                                    ),
-                                  )
-                                : null,
-                          );
-                        },
-                      ),
-                    ),
-                ],
+                  ],
                 const SizedBox(height: 12),
                 SizedBox(
                   width: double.infinity,
@@ -507,7 +513,9 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
     }
     if (user != null) {
       final exp = user['premium_expired'];
-      if (exp != null && exp.toString().isNotEmpty) {
+      if (exp != null && exp
+          .toString()
+          .isNotEmpty) {
         final d = DateTime.tryParse(exp.toString());
         if (d != null && d.isAfter(DateTime.now())) {
           _isPremiumUser = true;
@@ -549,6 +557,7 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
       _localViews = old + 1;
     });
   }
+
   Future<void> _loadViews() async {
     final prefs = await SharedPreferences.getInstance();
     final key = "views_${widget.filmId}_${_selectedEpisodeId}";
@@ -556,8 +565,6 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
       _localViews = prefs.getInt(key) ?? 0;
     });
   }
-
-
 
 
   //  PHIM
@@ -568,6 +575,20 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
       setState(() {
         _film = data;
         _isFilmPremium = data.isPremiumOnly;
+        final desc = data.description ?? "";
+        try {
+          final json = jsonDecode(desc);
+          if (json is Map && json['ops'] != null) {
+            _descController = _buildQuillController(desc);
+            _isQuillDescription = true;
+          } else {
+            _descController = null;
+            _isQuillDescription = false;
+          }
+        } catch (_) {
+          _descController = null;
+          _isQuillDescription = false;
+        }
       });
 
 
@@ -710,7 +731,6 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
       // 🔥 KHÔNG CÓ VIDEO
       // ======================================================
       setState(() => _isVideoReady = false);
-
     } catch (e) {
       debugPrint(" Lỗi tải video: $e");
       setState(() => _isVideoReady = false);
@@ -787,7 +807,7 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
         } catch (_) {}
 
         setState(() {
-          _betterPlayerController = null;   // 🔥 QUAN TRỌNG
+          _betterPlayerController = null; // 🔥 QUAN TRỌNG
         });
 
         await Future.delayed(const Duration(milliseconds: 50));
@@ -1131,6 +1151,7 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
 
   @override
   void dispose() {
+    _descController?.dispose();
     // 🔥 RESET ORIENTATION VỀ CHẾ ĐỘ DỌC KHI THOÁT MÀN HÌNH
     SystemChrome.setPreferredOrientations([
       DeviceOrientation.portraitUp,
@@ -1156,6 +1177,26 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
   // ============================================================
   // UI PHẦN DƯỚI VẪN GIỮ NGUYÊN
   // ============================================================
+  quill.QuillController _buildQuillController(String deltaJson) {
+    try {
+      final data = jsonDecode(deltaJson);
+
+      // Delta đến từ dart_quill_delta
+      final dqDelta = dq.Delta.fromJson(data['ops']);
+
+      // flutter_quill cần quill.Document.fromDelta → CHẤP NHẬN dq.Delta
+      final doc = quill.Document.fromDelta(dqDelta);
+
+      return quill.QuillController(
+        document: doc,
+        selection: const TextSelection.collapsed(offset: 0),
+      );
+    } catch (e) {
+      print("⚠ Lỗi đọc mô tả Quill: $e");
+      return quill.QuillController.basic();
+    }
+  }
+
 
   @override
   Widget build(BuildContext context) {
@@ -1190,8 +1231,11 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
                 // FIX: Không ép YouTube vào AspectRatio nữa để tránh overflow
                 SizedBox(
                   width: double.infinity,
-                  height: MediaQuery.of(context).size.width * 9 / 16,  // ⬅ GIẢM CHIỀU CAO
-                  child: ClipRRect(                                       // ⬅ CHẶN VIỀN TRÀN
+                  height: MediaQuery
+                      .of(context)
+                      .size
+                      .width * 9 / 16, // ⬅ GIẢM CHIỀU CAO
+                  child: ClipRRect( // ⬅ CHẶN VIỀN TRÀN
                     borderRadius: BorderRadius.circular(4),
                     child: _buildVideoSection(),
                   ),
@@ -1229,7 +1273,12 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
 
                         // Thông tin cơ bản
                         Text(
-                          "${_film!.releaseYear} | ${_film!.maturityRating.isNotEmpty ? _film!.maturityRating : 'Tất cả'} | ${_film!.countryName} | ${_film!.isSeries ? 'Phim bộ' : 'Phim lẻ'} | ${_film!.filmStatus}",
+                          "${_film!.releaseYear} | ${_film!.maturityRating
+                              .isNotEmpty
+                              ? _film!.maturityRating
+                              : 'Tất cả'} | ${_film!.countryName} | ${_film!
+                              .isSeries ? 'Phim bộ' : 'Phim lẻ'} | ${_film!
+                              .filmStatus}",
                           style: const TextStyle(
                             color: Colors.white,
                             fontSize: 13.5,
@@ -1275,8 +1324,8 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
                                   _avgScore >= starValue
                                       ? Icons.star
                                       : (_avgScore >= starValue - 0.5
-                                            ? Icons.star_half
-                                            : Icons.star_border),
+                                      ? Icons.star_half
+                                      : Icons.star_border),
                                   color: Colors.amberAccent,
                                   size: 16,
                                 );
@@ -1298,112 +1347,8 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
                         const SizedBox(height: 12),
 
                         // 🔥 Mô tả phim 3 dòng
-                        Builder(
-                          builder: (context) {
-                            final description = _film!.description.isNotEmpty
-                                ? _film!.description
-                                : "Chưa có mô tả cho bộ phim này.";
-
-                            return LayoutBuilder(
-                              builder: (context, constraints) {
-                                final span = TextSpan(
-                                  text: description,
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 14,
-                                    height: 1.2,
-                                  ),
-                                );
-
-                                final tp = TextPainter(
-                                  text: span,
-                                  maxLines: 3,
-                                  textDirection: TextDirection.ltr,
-                                );
-
-                                tp.layout(maxWidth: constraints.maxWidth);
-
-                                final isOverflow = tp.didExceedMaxLines;
-
-                                return Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Stack(
-                                      children: [
-                                        // Nội dung 3 dòng
-                                        AnimatedCrossFade(
-                                          firstChild: Text(
-                                            description,
-                                            maxLines: 3,
-                                            overflow: TextOverflow.ellipsis,
-                                            style: const TextStyle(
-                                              color: Colors.white,
-                                              fontSize: 14,
-                                              height: 1.2,
-                                            ),
-                                          ),
-                                          secondChild: Text(
-                                            description,
-                                            style: const TextStyle(
-                                              color: Colors.white,
-                                              fontSize: 14,
-                                              height: 1.2,
-                                            ),
-                                          ),
-                                          crossFadeState: _isExpandedDescription
-                                              ? CrossFadeState.showSecond
-                                              : CrossFadeState.showFirst,
-                                          duration: const Duration(milliseconds: 200),
-                                        ),
-
-                                        // ⭐ Nút xem thêm nằm NGAY CUỐI DÒNG 3
-                                        if (isOverflow && !_isExpandedDescription)
-                                          Positioned(
-                                            bottom: 0,
-                                            right: 0,
-                                            child: Container(
-                                              color: Colors.black,
-                                              padding: const EdgeInsets.only(left: 4),
-                                              child: GestureDetector(
-                                                onTap: () {
-                                                  setState(() => _isExpandedDescription = true);
-                                                },
-                                                child: const Text(
-                                                  " Xem thêm…",
-                                                  style: TextStyle(
-                                                    color: Colors.yellow,
-                                                    fontWeight: FontWeight.w600,
-                                                  ),
-                                                ),
-                                              ),
-                                            ),
-                                          ),
-                                      ],
-                                    ),
-
-                                    // ⭐ Nút thu gọn
-                                    if (isOverflow && _isExpandedDescription)
-                                      GestureDetector(
-                                        onTap: () {
-                                          setState(() => _isExpandedDescription = false);
-                                        },
-                                        child: const Padding(
-                                          padding: EdgeInsets.only(top: 6),
-                                          child: Text(
-                                            "Thu gọn ▲",
-                                            style: TextStyle(
-                                              color: Colors.yellow,
-                                              fontWeight: FontWeight.w600,
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                  ],
-                                );
-                              },
-                            );
-                          },
-                        ),
+                        _buildDescriptionSection(),
+                        const SizedBox(height: 14),
 
                         if (_film!.genres.isNotEmpty)
                           Padding(
@@ -1427,7 +1372,7 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
                               Icons.favorite,
                               "Yêu thích",
                               isFavorite ? Colors.redAccent : Colors.white,
-                              () {
+                                  () {
                                 if (!_favLoading) _toggleFavorite();
                               },
                             ),
@@ -1435,7 +1380,7 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
                               Icons.add,
                               "Thêm vào",
                               Colors.white,
-                              () {
+                                  () {
                                 _openAddToWatchListSheet();
                               },
                             ),
@@ -1452,13 +1397,15 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
                           _buildEpisodesSection(),
                           const SizedBox(height: 10),
                           _buildRecommendations(),
-                        ] else if (_selectedTab == 1) ...[
-                          _buildActorsSection(),
-                          const SizedBox(height: 10),
-                          _buildRecommendations(),
-                        ] else if (_selectedTab == 2) ...[
-                          _buildCommentSection(),
-                        ],
+                        ] else
+                          if (_selectedTab == 1) ...[
+                            _buildActorsSection(),
+                            const SizedBox(height: 10),
+                            _buildRecommendations(),
+                          ] else
+                            if (_selectedTab == 2) ...[
+                              _buildCommentSection(),
+                            ],
                       ],
                     ),
                   ),
@@ -1544,7 +1491,10 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
     //  🔥 FIX YOUTUBE KHÔNG BỊ OVERFLOW
     // --------------------------
     if (_youtubeController != null) {
-      final videoHeight = MediaQuery.of(context).size.width * 9 / 16;
+      final videoHeight = MediaQuery
+          .of(context)
+          .size
+          .width * 9 / 16;
 
       return YoutubePlayerBuilder(
         player: YoutubePlayer(
@@ -1557,7 +1507,7 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
               width: double.infinity,
               height: videoHeight,
               color: Colors.black,
-              child: ClipRect(     // ⬅ CHẶN 100% THANH 1:1 + / - BỊ TRÀN
+              child: ClipRect( // ⬅ CHẶN 100% THANH 1:1 + / - BỊ TRÀN
                 child: AspectRatio(
                   aspectRatio: 16 / 9,
                   child: ClipRRect(
@@ -1798,7 +1748,7 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
             children: List.generate(episodes.length, (i) {
               final epNum = episodes[i]["Episode_number"];
               final isSelected =
-                  (_selectedEpisodeId == episodes[i]["Episode_id"]);
+              (_selectedEpisodeId == episodes[i]["Episode_id"]);
               return GestureDetector(
                 onTap: () => _playEpisode(episodes[i]),
                 child: AnimatedContainer(
@@ -1863,7 +1813,7 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
           final role = actor['Character_name'] ?? "";
 
           return GestureDetector(
-            onTap: () => _openActorOverlay(actor),   // 👈 THÊM DÒNG NÀY
+            onTap: () => _openActorOverlay(actor), // 👈 THÊM DÒNG NÀY
             child: Container(
               width: 110,
               margin: const EdgeInsets.symmetric(horizontal: 6),
@@ -1875,7 +1825,9 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
                         ? NetworkImage(
                       avatar.startsWith('http')
                           ? avatar
-                          : '${Api.baseHost}${avatar.startsWith('/') ? avatar : '/$avatar'}',
+                          : '${Api.baseHost}${avatar.startsWith('/')
+                          ? avatar
+                          : '/$avatar'}',
                     )
                         : const NetworkImage(
                       "https://cdn.vtc.vn/avatar_default.png",
@@ -1916,6 +1868,61 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
     );
   }
 
+  Widget _buildDescriptionSection() {
+    if (_isQuillDescription && _descController != null) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          AnimatedSize(
+            duration: const Duration(milliseconds: 250),
+            curve: Curves.easeInOut,
+            child: ConstrainedBox(
+              constraints: _isExpandedDescription
+                  ? const BoxConstraints() // full height
+                  : const BoxConstraints(
+                maxHeight: 90, // collapsed
+              ),
+              child: quill.QuillEditor(
+                controller: _descController!,
+                scrollController: ScrollController(),
+                focusNode: FocusNode(),
+                config: const quill.QuillEditorConfig(
+                  expands: false,
+                  padding: EdgeInsets.zero,
+                  autoFocus: false,
+                  enableInteractiveSelection: false,
+                  showCursor: false,
+                ),
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 4),
+
+          GestureDetector(
+            onTap: () {
+              setState(() {
+                _isExpandedDescription = !_isExpandedDescription;
+              });
+            },
+            child: Text(
+              _isExpandedDescription ? "Thu gọn ▲" : "Xem thêm…",
+              style: const TextStyle(
+                color: Colors.yellow,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
+    return const SizedBox();
+  }
+
+
+
+
   void _openActorOverlay(Map<String, dynamic> actor) {
     showModalBottomSheet(
       context: context,
@@ -1924,7 +1931,6 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
       builder: (_) => ActorOverlay(actor: actor),
     );
   }
-
 
 
   Widget _buildCommentSection() {
@@ -1988,21 +1994,25 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+
             /// Avatar + tên + nội dung
             ListTile(
               leading: CircleAvatar(
                 radius: depth == 0 ? 20 : 16,
                 backgroundImage:
-                    (c['Avatar_url'] != null &&
-                        c['Avatar_url'].toString().isNotEmpty)
+                (c['Avatar_url'] != null &&
+                    c['Avatar_url']
+                        .toString()
+                        .isNotEmpty)
                     ? NetworkImage(
-                        c['Avatar_url'].toString().startsWith('http')
-                            ? c['Avatar_url']
-                            : '${Api.baseHost}${c['Avatar_url'].toString().startsWith('/') ? c['Avatar_url'] : '/${c['Avatar_url']}'}',
-                      )
+                  c['Avatar_url'].toString().startsWith('http')
+                      ? c['Avatar_url']
+                      : '${Api.baseHost}${c['Avatar_url'].toString().startsWith(
+                      '/') ? c['Avatar_url'] : '/${c['Avatar_url']}'}',
+                )
                     : const NetworkImage(
-                        "https://cdn.vtc.vn/avatar_default.png",
-                      ),
+                  "https://cdn.vtc.vn/avatar_default.png",
+                ),
               ),
               title: Text(
                 c['Profile_name'] ?? "Người dùng",
@@ -2048,7 +2058,8 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
                   Row(
                     children: [
                       GestureDetector(
-                        onTap: () => depth == 0
+                        onTap: () =>
+                        depth == 0
                             ? _toggleLike(c['Comment_id'])
                             : _toggleLikeReply(c),
                         child: Row(
@@ -2150,7 +2161,7 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
               GestureDetector(
                 onTap: () {
                   setState(
-                    () => c['showReplies'] = !(c['showReplies'] ?? false),
+                        () => c['showReplies'] = !(c['showReplies'] ?? false),
                   );
                 },
                 child: Padding(
@@ -2177,7 +2188,7 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
                 children: replies
                     .map<Widget>(
                       (r) => buildCommentItem(r, depth + 1, c['Comment_id']),
-                    )
+                )
                     .toList(),
               ),
           ],
@@ -2238,7 +2249,9 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
   }
 
   Future<void> _sendReply(int parentId, String text) async {
-    if (text.trim().isEmpty) return;
+    if (text
+        .trim()
+        .isEmpty) return;
 
     try {
       await Api.loadToken();
@@ -2394,12 +2407,10 @@ class _DetailFilmScreenState extends State<DetailFilmScreen> {
   }
 
   // Nút chung
-  Widget _buildActionButton(
-    IconData icon,
-    String label,
-    Color color,
-    VoidCallback onTap,
-  ) {
+  Widget _buildActionButton(IconData icon,
+      String label,
+      Color color,
+      VoidCallback onTap,) {
     return GestureDetector(
       onTap: onTap,
       child: Column(
