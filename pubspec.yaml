@@ -48,6 +48,8 @@ dependencies:
   volume_controller: ^2.0.7
   timeago: ^3.7.1
   webview_flutter: ^4.13.0
+  flutter_quill: ^11.5.0
+  dart_quill_delta: ^10.8.3
 
 dev_dependencies:
   flutter_test:
